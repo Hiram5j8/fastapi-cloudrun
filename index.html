@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<body>
+<h2>上傳檔案讓雲端 Python 處理</h2>
+
+<input type="file" id="fileInput">
+<button onclick="upload()">上傳並處理</button>
+
+<script>
+function upload() {
+    const file = document.getElementById("fileInput").files[0];
+    const formData = new FormData();
+    formData.append("file", file);
+
+    fetch("https://fastapi-service-445636251861.asia-east1.run.app/process-file", {
+        method: "POST",
+        body: formData
+    })
+    .then(res => res.blob())
+    .then(blob => {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "processed_" + file.name;
+        a.click();
+    });
+}
+</script>
+
+</body>
+</html>
