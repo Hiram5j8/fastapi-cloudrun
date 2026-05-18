@@ -15,20 +15,22 @@ app.add_middleware(
 
 @app.get("/")
 def root():
-    return {"message": "File API running 🚀"}
+    return {"message": "File API running  xxxxxxxxxxxxxxxx 🚀"}
 
 @app.post("/process-file")
 async def process_file(file: UploadFile = File(...)):
-    # 存上傳檔案
     input_path = f"/tmp/{file.filename}"
+    output_path = f"/tmp/processed_{file.filename}"
+
+    # 存檔
     with open(input_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    # === 這裡放你的 Python 處理程式 ===
-    output_path = f"/tmp/processed_{file.filename}"
-    with open(input_path, "r") as fin, open(output_path, "w") as fout:
-        content = fin.read()
-        fout.write("Processed:\n" + content)
-    # =================================
+    print("input exists:", os.path.exists(input_path))
+
+    # 測試：單純複製檔案（保證成功）
+    shutil.copy(input_path, output_path)
+
+    print("output exists:", os.path.exists(output_path))
 
     return FileResponse(output_path, filename=f"processed_{file.filename}")
