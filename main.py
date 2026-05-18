@@ -1,6 +1,8 @@
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+
 import shutil
 import os
 
@@ -13,11 +15,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get("/")
-def root():
-    return {"message": "File API running  xxxxxxxxxxxxxxxx 🚀"}
-# 掛載靜態網頁資料夾
+# ✅ API 首頁（測試用）
+@app.get("/api")
+def api_root():
+    return {"message": "File API running 🚀"}
+
+# ✅ 掛載靜態網頁（注意：不是 /）
 app.mount("/", StaticFiles(directory="static", html=True), name="static")
+
 
 @app.post("/process")
 async def process_file(file: UploadFile = File(...)):
