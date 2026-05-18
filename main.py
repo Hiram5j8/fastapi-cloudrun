@@ -16,21 +16,25 @@ app.add_middleware(
 @app.get("/")
 def root():
     return {"message": "File API running  xxxxxxxxxxxxxxxx 🚀"}
+# 掛載靜態網頁資料夾
+app.mount("/", StaticFiles(directory="static", html=True), name="static")
 
-@app.post("/process-file")
+@app.post("/process")
 async def process_file(file: UploadFile = File(...)):
     input_path = f"/tmp/{file.filename}"
     output_path = f"/tmp/processed_{file.filename}"
 
-    # 存檔
     with open(input_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    print("input exists:", os.path.exists(input_path))
+    # === 這裡放你的 Python 處理程式 ===
+    with open(input_path, "r", encoding="utf-8") as f:
+        data = f.read()
 
-    # 測試：單純複製檔案（保證成功）
-    shutil.copy(input_path, output_path)
+    processed_data = data.upper()  # ← 換成你的邏輯
 
-    print("output exists:", os.path.exists(output_path))
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(processed_data)
+    # ====================================
 
     return FileResponse(output_path, filename=f"processed_{file.filename}")
