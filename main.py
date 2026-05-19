@@ -1,12 +1,15 @@
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
 import zipfile, shutil, os
 import pandas as pd
 from openpyxl import Workbook
 
 app = FastAPI()
-app.mount("/", StaticFiles(directory="static", html=True), name="static")
+
+
+@app.get("/")
+def root():
+    return {"message": "FastAPI running on Cloud Run 🚀"}
 
 
 def xls_to_xlsx(path):
@@ -19,7 +22,10 @@ def xls_to_xlsx(path):
 
 
 @app.post("/process")
-async def process(base_xls: UploadFile = File(...), data_zip: UploadFile = File(...)):
+async def process(
+    base_xls: UploadFile = File(...),
+    data_zip: UploadFile = File(...)
+):
     work = "/tmp/work"
     os.makedirs(work, exist_ok=True)
 
@@ -28,10 +34,11 @@ async def process(base_xls: UploadFile = File(...), data_zip: UploadFile = File(
 
     with open(base_path, "wb") as f:
         shutil.copyfileobj(base_xls.file, f)
+
     with open(zip_path, "wb") as f:
         shutil.copyfileobj(data_zip.file, f)
 
-    # 轉 base.xls
+    # 轉檔
     base_path = xls_to_xlsx(base_path)
     base_df = pd.read_excel(base_path)
 
@@ -55,7 +62,7 @@ async def process(base_xls: UploadFile = File(...), data_zip: UploadFile = File(
                 df = pd.read_excel(fpath)
 
                 if df.iloc[2, 0] == base_key:
-                    for c in range(2, 37, 5):  # C~AK
+                    for c in range(2, 37, 5):
                         row = df.iloc[2, c:c+5].tolist()
                         result_ws.append(row)
 
