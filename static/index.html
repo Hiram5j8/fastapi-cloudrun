@@ -4,59 +4,50 @@
     <meta charset="UTF-8">
     <title>Excel 彙整系統</title>
 </head>
-<body style="font-family: Arial; padding:40px">
+<body>
+    <h2>Excel 彙整系統</h2>
 
-    <h2>Excel Combine System Test</h2>
+    <p>上傳 Base Excel：</p>
+    <input type="file" id="baseFile" accept=".xls,.xlsx"><br><br>
 
-    <p>選擇基準 XLS：</p>
-    <input type="file" id="xlsFile" accept=".xls,.xlsx"><br><br>
-
-    <p>Choice ZIP（Several XLS）：</p>
+    <p>上傳 Data ZIP：</p>
     <input type="file" id="zipFile" accept=".zip"><br><br>
 
-    <button onclick="uploadFiles()">Combine output xls</button>
+    <button onclick="upload()">彙整</button>
 
-    <p id="status" style="color:blue;"></p>
+    <p id="status"></p>
 
 <script>
-async function uploadFiles() {
-    const xls = document.getElementById('xlsFile').files[0];
+async function upload() {
+    const base = document.getElementById('baseFile').files[0];
     const zip = document.getElementById('zipFile').files[0];
 
-    if (!xls || !zip) {
-        alert("請同時選擇 XLS 與 ZIP");
+    if (!base || !zip) {
+        alert("請選擇兩個檔案");
         return;
     }
 
     document.getElementById('status').innerText = "上傳並處理中，請稍候...";
 
     const formData = new FormData();
-    formData.append("xls_file", xls);
-    formData.append("zip_file", zip);
+    formData.append("base_xls", base);
+    formData.append("data_zip", zip);
 
-    try {
-        const response = await fetch("/process", {
-            method: "POST",
-            body: formData
-        });
+    const response = await fetch("/process", {
+        method: "POST",
+        body: formData
+    });
 
-        if (!response.ok) {
-            throw new Error("處理失敗");
-        }
-
+    if (response.ok) {
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
-
-        const a = document.createElement("a");
+        const a = document.createElement('a');
         a.href = url;
         a.download = "result.xlsx";
-        document.body.appendChild(a);
         a.click();
-        a.remove();
-
         document.getElementById('status').innerText = "完成！已下載 result.xlsx";
-    } catch (err) {
-        document.getElementById('status').innerText = "錯誤：" + err;
+    } else {
+        document.getElementById('status').innerText = "錯誤：處理失敗";
     }
 }
 </script>

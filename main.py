@@ -1,92 +1,66 @@
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import FileResponse
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-
-import pandas as pd
 import zipfile
 import shutil
 import os
+from openpyxl import load_workbook, Workbook
 
 app = FastAPI()
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# ===== 掛載靜態網頁（最重要）=====
+# 掛載前端網頁
 app.mount("/", StaticFiles(directory="static", html=True), name="static")
 
-WORK_DIR = "/tmp/work"
-os.makedirs(WORK_DIR, exist_ok=True)
 
+@app.post("/process")
+async def process(base_xls: UploadFile = File(...), data_zip: UploadFile = File(...)):
+    work_dir = "/tmp/work"
+    os.makedirs(work_dir, exist_ok=True)
 
-# ===== 共用 Excel 規則 =====
-def extract_rule_from_excel(path):
-    df = pd.read_excel(path, header=None)
+    base_path = os.path.join(work_dir, base_xls.filename)
+    zip_path = os.path.join(work_dir, data_zip.filename)
 
-    key = df.iloc[2, 0]           # A3
-    row_data = df.iloc[2, 2:37]  # C3~AK3
-
-    groups = [row_data[i:i+5].tolist() for i in range(0, len(row_data), 5)]
-
-    rows = []
-    for idx, g in enumerate(groups, start=1):
-        rows.append([key, f"Group{idx}"] + g)
-
-    return rows
-
-
-# ===== 單一 XLS =====
-@app.post("/api/process-xls")
-async def process_xls(file: UploadFile = File(...)):
-    input_path = f"{WORK_DIR}/{file.filename}"
-
-    with open(input_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
-
-    rows = extract_rule_from_excel(input_path)
-
-    df_out = pd.DataFrame(rows,
-                          columns=["Key(A3)", "Group", "V1", "V2", "V3", "V4", "V5"])
-
-    output_path = f"{WORK_DIR}/result.xlsx"
-    df_out.to_excel(output_path, index=False)
-
-    return FileResponse(output_path, filename="result.xlsx")
-
-
-# ===== ZIP 彙整 =====
-@app.post("/api/process-zip")
-async def process_zip(file: UploadFile = File(...)):
-    zip_path = f"{WORK_DIR}/upload.zip"
+    # 儲存上傳檔
+    with open(base_path, "wb") as f:
+        shutil.copyfileobj(base_xls.file, f)
 
     with open(zip_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
+        shutil.copyfileobj(data_zip.file, f)
 
-    extract_dir = f"{WORK_DIR}/unzipped"
-    if os.path.exists(extract_dir):
-        shutil.rmtree(extract_dir)
+    # 解壓縮 ZIP
+    unzip_dir = os.path.join(work_dir, "unzipped")
+    os.makedirs(unzip_dir, exist_ok=True)
 
     with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-        zip_ref.extractall(extract_dir)
+        zip_ref.extractall(unzip_dir)
 
-    all_rows = []
+    # 讀 base.xls
+    base_wb = load_workbook(base_path)
+    base_ws = base_wb.active
 
-    for root, dirs, files in os.walk(extract_dir):
-        for name in files:
-            if name.endswith((".xls", ".xlsx")):
-                full_path = os.path.join(root, name)
-                rows = extract_rule_from_excel(full_path)
-                all_rows.extend(rows)
+    result_wb = Workbook()
+    result_ws = result_wb.active
+    result_row = 1
 
-    df_out = pd.DataFrame(all_rows,
-                          columns=["Key(A3)", "Group", "V1", "V2", "V3", "V4", "V5"])
+    # 規則：C3~AK3 每5格一組，比對 A3
+    base_key = base_ws["A3"].value
 
-    output_path = f"{WORK_DIR}/summary.xlsx"
-    df_out.to_excel(output_path, index=False)
+    for root, dirs, files in os.walk(unzip_dir):
+        for file in files:
+            if file.endswith(".xls") or file.endswith(".xlsx"):
+                file_path = os.path.join(root, file)
+                wb = load_workbook(file_path)
+                ws = wb.active
 
-    return FileResponse(output_path, filename="summary.xlsx")
+                if ws["A3"].value == base_key:
+                    cols = range(3, 38, 5)  # C(3) ~ AK(37)
+
+                    for c in cols:
+                        values = [ws.cell(row=3, column=c+i).value for i in range(5)]
+                        result_ws.append(values)
+                        result_row += 1
+
+    result_path = os.path.join(work_dir, "result.xlsx")
+    result_wb.save(result_path)
+
+    return FileResponse(result_path, filename="result.xlsx")
