@@ -1,56 +1,44 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <title>Excel 彙整系統</title>
+  <meta charset="UTF-8">
+  <title>Upload Test</title>
 </head>
 <body>
-    <h2>Excel 彙整系統</h2>
+  <h2>Upload Excel + ZIP</h2>
 
-    <p>上傳 Base Excel：</p>
-    <input type="file" id="baseFile" accept=".xls,.xlsx"><br><br>
+  <form id="form">
+    <input type="file" name="base_xls"><br><br>
+    <input type="file" name="data_zip"><br><br>
+    <button type="submit">Upload</button>
+  </form>
 
-    <p>上傳 Data ZIP：</p>
-    <input type="file" id="zipFile" accept=".zip"><br><br>
+  <pre id="result"></pre>
 
-    <button onclick="upload()">彙整</button>
+  <script>
+    const form = document.getElementById("form");
 
-    <p id="status"></p>
+    form.onsubmit = async (e) => {
+      e.preventDefault();
 
-<script>
-async function upload() {
-    const base = document.getElementById('baseFile').files[0];
-    const zip = document.getElementById('zipFile').files[0];
+      const formData = new FormData(form);
 
-    if (!base || !zip) {
-        alert("請選擇兩個檔案");
-        return;
-    }
-
-    document.getElementById('status').innerText = "上傳並處理中，請稍候...";
-
-    const formData = new FormData();
-    formData.append("base_xls", base);
-    formData.append("data_zip", zip);
-
-    const response = await fetch("/process", {
+      const res = await fetch("/process", {
         method: "POST",
         body: formData
-    });
+      });
 
-    if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = "result.xlsx";
-        a.click();
-        document.getElementById('status').innerText = "完成！已下載 result.xlsx";
-    } else {
-        document.getElementById('status').innerText = "錯誤：處理失敗";
-    }
-}
-</script>
+      const blob = await res.blob();
 
+      document.getElementById("result").textContent =
+        "下載完成（result.xlsx）";
+
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "result.xlsx";
+      a.click();
+    };
+  </script>
 </body>
 </html>

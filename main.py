@@ -1,4 +1,5 @@
 from fastapi import FastAPI, UploadFile, File
+from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 import zipfile, shutil, os
 import pandas as pd
@@ -6,21 +7,17 @@ from openpyxl import Workbook
 
 app = FastAPI()
 
+# ✅ static 一定只能掛 /static（安全）
+app.mount("/static", StaticFiles(directory="static", html=True), name="static")
 
+
+# ✅ 首頁
 @app.get("/")
-def root():
-    return {"message": "FastAPI running on Cloud Run 🚀"}
+def home():
+    return FileResponse("static/index.html")
 
 
-def xls_to_xlsx(path):
-    if path.endswith(".xls"):
-        df = pd.read_excel(path, engine="xlrd")
-        new_path = path + "x"
-        df.to_excel(new_path, index=False)
-        return new_path
-    return path
-
-
+# ✅ API
 @app.post("/process")
 async def process(
     base_xls: UploadFile = File(...),
@@ -38,11 +35,9 @@ async def process(
     with open(zip_path, "wb") as f:
         shutil.copyfileobj(data_zip.file, f)
 
-    # 轉檔
-    base_path = xls_to_xlsx(base_path)
+    # Excel
     base_df = pd.read_excel(base_path)
-
-    base_key = base_df.iloc[2, 0]  # A3
+    base_key = base_df.iloc[2, 0]
 
     unzip_dir = os.path.join(work, "unzipped")
     os.makedirs(unzip_dir, exist_ok=True)
@@ -57,8 +52,6 @@ async def process(
         for file in files:
             if file.endswith((".xls", ".xlsx")):
                 fpath = os.path.join(root, file)
-                fpath = xls_to_xlsx(fpath)
-
                 df = pd.read_excel(fpath)
 
                 if df.iloc[2, 0] == base_key:
