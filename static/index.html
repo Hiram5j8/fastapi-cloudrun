@@ -2,46 +2,64 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>Excel 雲端處理</title>
-
-    <!-- 關鍵：中文字型與編碼 -->
-    <style>
-        body {
-            font-family: "Microsoft JhengHei", "PingFang TC", Arial, sans-serif;
-            padding: 40px;
-            line-height: 1.8;
-            font-size: 18px;
-        }
-        h1 { color: #2c3e50; }
-        h2 { margin-top: 40px; color: #34495e; }
-        button {
-            padding: 12px 24px;
-            font-size: 18px;
-            cursor: pointer;
-        }
-        input {
-            margin: 15px 0;
-            font-size: 16px;
-        }
-    </style>
+    <title>Excel 彙整系統</title>
 </head>
+<body style="font-family: Arial; padding:40px">
 
-<body>
+    <h2>Excel Combine System Test</h2>
 
-    <h1>Excel 雲端批次處理系統 ??</h1>
+    <p>選擇基準 XLS：</p>
+    <input type="file" id="xlsFile" accept=".xls,.xlsx"><br><br>
 
-    <h2>? 單一 XLS 檔處理</h2>
-    <form action="/process-xls" method="post" enctype="multipart/form-data">
-        <input type="file" name="file" accept=".xls,.xlsx" required>
-        <br>
-    </form>
+    <p>Choice ZIP（Several XLS）：</p>
+    <input type="file" id="zipFile" accept=".zip"><br><br>
 
-    <h2>? 資料夾 ZIP 批次彙整</h2>
-    <form action="/process-zip" method="post" enctype="multipart/form-data">
-        <input type="file" name="file" accept=".zip" required>
-        <br>
-        <button type="submit">上傳 ZIP 並彙整 Excel</button>
-    </form>
+    <button onclick="uploadFiles()">Combine output xls</button>
+
+    <p id="status" style="color:blue;"></p>
+
+<script>
+async function uploadFiles() {
+    const xls = document.getElementById('xlsFile').files[0];
+    const zip = document.getElementById('zipFile').files[0];
+
+    if (!xls || !zip) {
+        alert("請同時選擇 XLS 與 ZIP");
+        return;
+    }
+
+    document.getElementById('status').innerText = "上傳並處理中，請稍候...";
+
+    const formData = new FormData();
+    formData.append("xls_file", xls);
+    formData.append("zip_file", zip);
+
+    try {
+        const response = await fetch("/process", {
+            method: "POST",
+            body: formData
+        });
+
+        if (!response.ok) {
+            throw new Error("處理失敗");
+        }
+
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "result.xlsx";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+
+        document.getElementById('status').innerText = "完成！已下載 result.xlsx";
+    } catch (err) {
+        document.getElementById('status').innerText = "錯誤：" + err;
+    }
+}
+</script>
 
 </body>
 </html>
