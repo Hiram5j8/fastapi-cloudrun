@@ -42,6 +42,13 @@ async def process(
         zip_ref.extractall(unzip_dir)
 
     # === 建立結果 Excel ===
+    # 上傳檔案存起來
+    upload_path = os.path.join(work, base_xls.filename)
+  
+    # 直接複製成 result.xlsx
+    result_path = os.path.join(work, "result.xlsx")
+    shutil.copy(upload_path, result_path)
+    
     result_wb = Workbook()
     result_ws = result_wb.active
     result_ws.title = "Merged Data"
