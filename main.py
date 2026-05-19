@@ -24,37 +24,55 @@ async def process(
     data_zip: UploadFile = File(...)
 ):
     work = "/tmp/work"
-    work = "/tmp/work"
-    os.makedirs(work, exist_ok=True)
+    unzip_dir = os.path.join(work, "unzipped")
+    os.makedirs(unzip_dir, exist_ok=True)
 
-    #base_path = os.path.join(work, base_xls.filename)
+    # === 儲存上傳檔案 ===
+    base_path = os.path.join(work, base_xls.filename)
     zip_path = os.path.join(work, data_zip.filename)
 
-    #with open(base_path, "wb") as f:
-        #shutil.copyfileobj(base_xls.file, f)
+    with open(base_path, "wb") as f:
+        shutil.copyfileobj(base_xls.file, f)
 
     with open(zip_path, "wb") as f:
         shutil.copyfileobj(data_zip.file, f)
 
-    # Excel
-    base_df = pd.read_excel(base_path)
-    base_key = base_df.iloc[2, 0]
+    # === 解壓縮 zip ===
+    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+        zip_ref.extractall(unzip_dir)
 
-    unzip_dir = os.path.join(work, "unzipped")
-    os.makedirs(unzip_dir, exist_ok=True)
-
-    with zipfile.ZipFile(zip_path, 'r') as z:
-        z.extractall(unzip_dir)
-
+    # === 建立結果 Excel ===
     result_wb = Workbook()
     result_ws = result_wb.active
+    result_ws.title = "Merged Data"
 
+    write_row = 1
+
+    # === 走訪 zip 內所有 Excel 檔 ===
+    for root, dirs, files in os.walk(unzip_dir):
+        for file in files:
+            if file.endswith(".xlsx"):
+                file_path = os.path.join(root, file)
+                src_wb = load_workbook(file_path, data_only=True)
+                src_ws = src_wb.active
+
+                # 檔名當分隔標題
+                result_ws.cell(row=write_row, column=1, value=f"=== {file} ===")
+                write_row += 1
+
+                # 將每個儲存格的值寫入 result
+                for row in src_ws.iter_rows(values_only=True):
+                    for col_idx, cell_value in enumerate(row, start=1):
+                        result_ws.cell(row=write_row, column=col_idx, value=cell_value)
+                    write_row += 1
+
+                write_row += 2  # 空兩行分隔
+
+    # === 儲存結果 ===
     result_path = os.path.join(work, "result.xlsx")
     result_wb.save(result_path)
 
-    #return FileResponse(result_path, filename="result.xlsx")
-
-
+    # === 回傳下載 ===
     return FileResponse(
         result_path,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
