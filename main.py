@@ -1,11 +1,16 @@
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-import zipfile, shutil, os
+
+import zipfile
+import shutil
+import os
 import pandas as pd
 from openpyxl import Workbook
+import uvicorn
 
 app = FastAPI()
+
 # ✅ static 改路徑（避免吃掉 /process）
 if os.path.exists("static"):
     app.mount("/static", StaticFiles(directory="static", html=True), name="static")
@@ -90,3 +95,11 @@ async def process(
         result_path,
         filename="result.xlsx"
     )
+
+
+# -----------------------------
+# Cloud Run entrypoint
+# -----------------------------
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8080))
+    uvicorn.run(app, host="0.0.0.0", port=port)
