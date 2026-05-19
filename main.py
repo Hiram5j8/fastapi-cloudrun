@@ -32,7 +32,7 @@ async def process(base_xls: UploadFile = File(...), data_zip: UploadFile = File(
     # === 複製成 result.xlsx ===
     result_path = os.path.join(work, "result.xlsx")
     shutil.copy(base_path, result_path)
-
+    """
     # === 儲存並解壓 zip ===
     zip_path = os.path.join(work, "data.zip")
     with open(zip_path, "wb") as f:
@@ -71,9 +71,9 @@ async def process(base_xls: UploadFile = File(...), data_zip: UploadFile = File(
 
     # === 儲存 ===
     result_wb.save(result_path)
-
+    """
     return FileResponse(
         result_path,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        filename="result.xlsx"
+        filename="output.xlsx"
     )
