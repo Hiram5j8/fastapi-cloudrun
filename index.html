@@ -1,32 +1,47 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>File Processor</title>
-</head>
-<body>
-    <h2>上傳檔案處理</h2>
-    <input type="file" id="fileInput">
-    <button onclick="upload()">開始處理</button>
+    <title>Excel 雲端處理</title>
 
-    <script>
-        async function upload() {
-            const file = document.getElementById('fileInput').files[0];
-            const formData = new FormData();
-            formData.append('file', file);
-
-            const response = await fetch('/process', {
-                method: 'POST',
-                body: formData
-            });
-
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'processed_' + file.name;
-            a.click();
+    <!-- 關鍵：中文字型與編碼 -->
+    <style>
+        body {
+            font-family: "Microsoft JhengHei", "PingFang TC", Arial, sans-serif;
+            padding: 40px;
+            line-height: 1.8;
+            font-size: 18px;
         }
-    </script>
+        h1 { color: #2c3e50; }
+        h2 { margin-top: 40px; color: #34495e; }
+        button {
+            padding: 12px 24px;
+            font-size: 18px;
+            cursor: pointer;
+        }
+        input {
+            margin: 15px 0;
+            font-size: 16px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Excel 雲端批次處理系統 ??</h1>
+
+    <h2>? 單一 XLS 檔處理</h2>
+    <form action="/process-xls" method="post" enctype="multipart/form-data">
+        <input type="file" name="file" accept=".xls,.xlsx" required>
+        <br>
+    </form>
+
+    <h2>? 資料夾 ZIP 批次彙整</h2>
+    <form action="/process-zip" method="post" enctype="multipart/form-data">
+        <input type="file" name="file" accept=".zip" required>
+        <br>
+        <button type="submit">上傳 ZIP 並彙整 Excel</button>
+    </form>
+
 </body>
 </html>
