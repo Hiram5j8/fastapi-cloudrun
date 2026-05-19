@@ -6,8 +6,8 @@ on:
 
 env:
   SERVICE_NAME: fastapi-service
-  PROJECT_ID: no-my-project-260517   # ← 直接寫死
-  REGION: asia-east1                 # ← 直接寫死
+  REGION: ${{ secrets.GCP_REGION }}
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
@@ -33,5 +33,4 @@ jobs:
             --region $REGION \
             --platform managed \
             --allow-unauthenticated \
-            --project $PROJECT_ID \
-            --quiet
+            --project $PROJECT_ID
