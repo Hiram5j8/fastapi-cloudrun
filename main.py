@@ -55,7 +55,7 @@ async def process(base_xls: UploadFile = File(...),
     with zipfile.ZipFile(zip_path, 'r') as z:
         z.extractall(unzip_dir)
 
-    # === 找到 ZIP 內唯一的 Excel ===
+    # === 找 Excel（只能一個）===
     files = glob.glob(os.path.join(unzip_dir, "**", "*.xls*"), recursive=True)
 
     if len(files) != 1:
@@ -63,13 +63,11 @@ async def process(base_xls: UploadFile = File(...),
 
     src_excel = files[0]
 
-    # === 讀取後另存成 result.xlsx ===
-    df = pd.read_excel(src_excel)
-
+    # === 直接位元複製（重點）===
     result_path = os.path.join(work, "result.xlsx")
-    df.to_excel(result_path, index=False)
+    shutil.copyfile(src_excel, result_path)
 
-    # === 回傳下載 ===
+    # === 回傳 ===
     return FileResponse(
         result_path,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
