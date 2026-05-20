@@ -55,6 +55,39 @@ def process_sheet(df: pd.DataFrame, sheet_name: str) -> pd.DataFrame:
 
     #return df
 
+def process_and_paste(df: pd.DataFrame, ws_result):
+    """
+    核心邏輯：
+    ZIP A3 比對 result 每5列一組的 A欄
+    相同則把 ZIP B3:AK8 貼到該區塊
+    """
+
+    # ZIP 的 A3
+    zip_a3 = str(df.iloc[2, 0]).strip()
+
+    # ZIP 要貼的區塊 B3:AK8
+    block = df.iloc[2:8, 1:37].values  # 6列 x 36欄
+
+    check_row = 3  # 從 A3 開始
+
+    while True:
+        cell_val = ws_result.cell(row=check_row, column=1).value
+
+        if cell_val is None:
+            break
+
+        if str(cell_val).strip() == zip_a3:
+            # 貼到該區塊 B~AK
+            for r in range(6):        # 6列
+                for c in range(36):   # 36欄
+                    ws_result.cell(
+                        row=check_row + r,
+                        column=2 + c,
+                        value=block[r][c]
+                    )
+
+        check_row += 5  # 下一組
+        
 # =========================
 # API
 # =========================
@@ -66,63 +99,45 @@ async def process(
    # 1. 建立工作資料夾
     work = tempfile.mkdtemp(prefix="work_")
 
+    # 儲存 base.xlsx
     base_path = os.path.join(work, "base.xlsx")
-    zip_path = os.path.join(work, "data.zip")
-
-    # 2. 存 base.xlsx
     with open(base_path, "wb") as f:
         shutil.copyfileobj(base_xls.file, f)
 
-    # 3. 存 zip
+    # 儲存 zip
+    zip_path = os.path.join(work, "data.zip")
     with open(zip_path, "wb") as f:
         shutil.copyfileobj(data_zip.file, f)
 
-    # 4. 解壓 zip
-    extract_dir = os.path.join(work, "extract")
-    os.makedirs(extract_dir, exist_ok=True)
-
-    with zipfile.ZipFile(zip_path, "r") as z:
-        z.extractall(extract_dir)
-
-    # 5. 找 Excel 檔
-    excel_file = None
-    for root, _, files in os.walk(extract_dir):
-        for f in files:
-            if f.endswith((".xls", ".xlsx")):
-                excel_file = os.path.join(root, f)
-                break
-
-    if not excel_file:
-        return {"error": "ZIP 內沒有 Excel 檔"}
-
-    # 6. 讀 Excel（所有 sheet）
-    xls = pd.ExcelFile(excel_file)
-
-    result_sheets = {}
-
-    # 7. 依序處理 sheet
-    for i, sheet_name in enumerate(xls.sheet_names):
-        df = pd.read_excel(xls, sheet_name=sheet_name)
-
-        print(f"處理第 {i+1} 張 sheet: {sheet_name}")
-
-        result_df = process_sheet(df, sheet_name)
-
-        result_sheets[sheet_name] = result_df
-
-    # 8. 輸出 result.xlsx
+    # 複製 base 成 result（保留所有格式）
     result_path = os.path.join(work, "result.xlsx")
+    shutil.copy(base_path, result_path)
 
-    with pd.ExcelWriter(result_path, engine="openpyxl") as writer:
-        for sheet_name, df in result_sheets.items():
-            df.to_excel(writer, sheet_name=sheet_name, index=False)
+    # 開啟 result.xlsx
+    wb = load_workbook(result_path)
+    ws_result = wb.active
 
-    # =========================
-    # 7. 回傳結果檔
-    # =========================
+    # 解壓 ZIP
+    unzip_dir = os.path.join(work, "unzipped")
+    with zipfile.ZipFile(zip_path, 'r') as z:
+        z.extractall(unzip_dir)
+
+    # 讀取 ZIP 內所有 Excel
+    excel_files = glob.glob(os.path.join(unzip_dir, "*.xls*"))
+
+    for excel in excel_files:
+        # 每個 Excel 可能有多個 sheet
+        xls = pd.ExcelFile(excel)
+
+        for sheet_name in xls.sheet_names:
+            df = pd.read_excel(xls, sheet_name=sheet_name, header=None)
+            process_and_paste(df, ws_result)
+
+    # 儲存 result
+    wb.save(result_path)
+
     return FileResponse(
         result_path,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        filename="result.xlsx"
+        filename="result.xlsx",
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
-
