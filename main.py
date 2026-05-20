@@ -56,6 +56,15 @@ async def process(
     dst_wb = load_workbook(result_path)
     dst_ws = dst_wb.active
 
+
+    engine, master_wb = open_excel(master_file)
+
+    sheets = (
+        master_wb.sheetnames
+        if engine == "openpyxl"
+        else master_wb.sheet_names
+    )
+    
     paste_row = dst_ws.max_row + 2
 
     # === 找 zip 內所有 Excel ===
@@ -64,50 +73,20 @@ async def process(
     for file in files:
         src_wb = load_workbook(file, data_only=True)
         src_ws = src_wb.active
+        
+        for sh in sheets:
+            # ===== 複製 C1:AK36 =====
+                for r in range(1, 37):          # 1~36
+                for c in range(3, 38):      # C(3) ~ AK(37)
+                    val = src_ws.cell(row=r, column=c).value
 
-        # ===== 複製 C1:AK36 =====
-        for r in range(1, 37):          # 1~36
-            for c in range(3, 38):      # C(3) ~ AK(37)
-                val = src_ws.cell(row=r, column=c).value
+                    dst_ws.cell(
+                        row=paste_row + (r - 1),
+                        column=c,          # 貼回同樣 C~AK
+                        value=val
+                    )
 
-                dst_ws.cell(
-                    row=paste_row + (r - 1),
-                    column=c,          # 貼回同樣 C~AK
-                    value=val
-                )
-                # =========================
-                # 寫入 B 欄（只寫空白 & 非公式）
-                # =========================
-                for i in range(5):
-
-                    r = start + i - 2
-                    val = safe(df, r, 1)
-
-                    if val is not None and pd.notna(val):
-                        ws.range(found + i, 2).value = str(val)
-                # =========================
-                # C ~ MAX（完全自動）
-                # =========================
-                #max_c = df.shape[1]
-                max_c = 37		#AK
-                
-                for i in range(5):
-
-                    r = start + i - 2
-
-                    for c in range(2, max_c):
-
-                        val = safe(df, r, c)
-
-                        if val is None or pd.isna(val):
-                            continue
-
-                        if isinstance(val, (int, float, np.number)):
-                            ws.range(found + i, c + 1).value = val
-
-                        elif isinstance(val, str) and val.strip() in LEAVE:
-                            ws.range(found + i, c + 1).value = "請假"
-            paste_row += 40  # 每個檔案間隔
+        #paste_row += 40  # 每個檔案間隔
     # === 儲存 ===
     dst_wb.save(result_path)
 
