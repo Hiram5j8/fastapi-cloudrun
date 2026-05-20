@@ -75,15 +75,39 @@ async def process(
                     column=c,          # 貼回同樣 C~AK
                     value=val
                 )
-                
+                # =========================
+                # 寫入 B 欄（只寫空白 & 非公式）
+                # =========================
                 for i in range(5):
-                    
+
                     r = start + i - 2
                     val = safe(df, r, 1)
 
                     if val is not None and pd.notna(val):
-                        ws.range(found + i, 2).value = str(val)       
+                        ws.range(found + i, 2).value = str(val)
+                # =========================
+                # C ~ MAX（完全自動）
+                # =========================
+                #max_c = df.shape[1]
+                max_c = 37		#AK
+                
+                for i in range(5):
 
+                    r = start + i - 2
+
+                    for c in range(2, max_c):
+
+                        val = safe(df, r, c)
+
+                        if val is None or pd.isna(val):
+                            continue
+
+                        if isinstance(val, (int, float, np.number)):
+                            ws.range(found + i, c + 1).value = val
+
+                        elif isinstance(val, str) and val.strip() in LEAVE:
+                            ws.range(found + i, c + 1).value = "請假"
+            paste_row += 40  # 每個檔案間隔
     # === 儲存 ===
     dst_wb.save(result_path)
 
