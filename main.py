@@ -100,11 +100,11 @@ async def process(
 
         # ⭐ 修正重點：抓真正有資料的 sheet
         src_ws = find_data_sheet(src_wb)
-
-        # 固定範圍：C1 ~ AK36
+        i=0
+        # 固定範圍：C1 ~ AK36	1,37
         for r in range(1, 37):
-            for c in range(3, 38):
-                val = src_ws.cell(row=r, column=c).value
+            for c in range(3, 38):		#3,38
+                val = ++i
 
                 dst_ws.cell(
                     row=paste_row + r - 1,
