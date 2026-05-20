@@ -24,21 +24,6 @@ def home():
     return FileResponse("static/index.html")
 
 #start
-
-from fastapi import FastAPI, UploadFile, File
-from fastapi.responses import FileResponse
-
-import os
-import shutil
-import tempfile
-import zipfile
-import glob
-
-from openpyxl import load_workbook
-
-app = FastAPI()
-
-
 # =========================
 # 找到真正有資料的 sheet
 # =========================
