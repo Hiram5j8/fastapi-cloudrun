@@ -1,10 +1,15 @@
-import os
-import glob
-import zipfile
-import shutil
-import tempfile
-
 from fastapi import FastAPI, UploadFile, File
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+import zipfile, shutil, os
+import pandas as pd
+from openpyxl import Workbook
+import os, shutil, zipfile, tempfile, glob
+from datetime import datetime
+
+import pandas as pd
+import numpy as np
+from fastapi import UploadFile, File
 from fastapi.responses import FileResponse
 from openpyxl import load_workbook
 
@@ -19,7 +24,6 @@ app.mount("/static", StaticFiles(directory="static", html=True), name="static")
 def home():
     return FileResponse("static/index.html")
 
-
 @app.post("/process")
 async def process(
     base_xls: UploadFile = File(...),
@@ -33,53 +37,50 @@ async def process(
     with open(base_path, "wb") as f:
         shutil.copyfileobj(base_xls.file, f)
 
-    # === 複製成 result.xlsx（保留 base 結構）===
+    # === 複製成 result.xlsx ===
     result_path = os.path.join(work, "result.xlsx")
     shutil.copyfile(base_path, result_path)
 
-    # === 儲存 ZIP ===
+    # === 儲存並解壓 ZIP ===
     zip_path = os.path.join(work, "data.zip")
     with open(zip_path, "wb") as f:
         shutil.copyfileobj(data_zip.file, f)
 
-    # === 解壓 ZIP ===
     unzip_dir = os.path.join(work, "unzipped")
     os.makedirs(unzip_dir, exist_ok=True)
 
     with zipfile.ZipFile(zip_path, 'r') as z:
         z.extractall(unzip_dir)
 
-    # === 找 ZIP 內 Excel（必須只有一個）===
-    files = glob.glob(os.path.join(unzip_dir, "**", "*.xls*"), recursive=True)
-
-
-    # === 開啟來源 Excel & result Excel ===
-    src_wb = load_workbook(src_excel, data_only=False)
+    # === 開啟 result.xlsx ===
     dst_wb = load_workbook(result_path)
+    dst_ws = dst_wb.active
 
-    # === 將來源每個 sheet 複製到 result ===
-    for sh in src_wb.sheetnames:
+    paste_row = dst_ws.max_row + 2
 
-        src_ws = src_wb[sh]
+    # === 找 zip 內所有 Excel ===
+    files = glob.glob(os.path.join(unzip_dir, "**", "*.xlsx"), recursive=True)
 
-        # result 沒這個 sheet 就建立
-        if sh not in dst_wb.sheetnames:
-            dst_ws = dst_wb.create_sheet(sh)
-        else:
-            dst_ws = dst_wb[sh]
+    for file in files:
+        src_wb = load_workbook(file, data_only=True)
+        src_ws = src_wb.active
 
-        # 複製所有儲存格內容
-        for row in src_ws.iter_rows():
-            for cell in row:
+        # ===== 複製 C1:AK36 =====
+        for r in range(1, 37):          # 1~36
+            for c in range(3, 38):      # C(3) ~ AK(37)
+                val = src_ws.cell(row=r, column=c).value
+
                 dst_ws.cell(
-                    row=cell.row,
-                    column=cell.column
-                ).value = cell.value
+                    row=paste_row + (r - 1),
+                    column=c,          # 貼回同樣 C~AK
+                    value=val
+                )
 
-    # === 儲存 result.xlsx ===
+        paste_row += 40  # 每個檔案間隔
+
+    # === 儲存 ===
     dst_wb.save(result_path)
 
-    # === 回傳下載 ===
     return FileResponse(
         result_path,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
