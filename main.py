@@ -12,6 +12,7 @@ import numpy as np
 from fastapi import UploadFile, File
 from fastapi.responses import FileResponse
 from openpyxl import load_workbook
+from copy import copy
 
 app = FastAPI()
 
@@ -51,6 +52,31 @@ def process_sheet(df: pd.DataFrame, sheet_name: str) -> pd.DataFrame:
 
     return df
 
+
+def copy_cell(src_cell, dst_cell):
+    dst_cell.value = src_cell.value
+    if src_cell.has_style:
+        dst_cell.font = copy(src_cell.font)
+        dst_cell.border = copy(src_cell.border)
+        dst_cell.fill = copy(src_cell.fill)
+        dst_cell.number_format = copy(src_cell.number_format)
+        dst_cell.protection = copy(src_cell.protection)
+        dst_cell.alignment = copy(src_cell.alignment)
+    
+def copy_range(src_ws, dst_ws,
+               min_row, max_row,
+               min_col, max_col,
+               target_row, target_col):
+
+    for r in range(min_row, max_row + 1):
+        for c in range(min_col, max_col + 1):
+            src = src_ws.cell(r, c)
+            dst = dst_ws.cell(
+                target_row + (r - min_row),
+                target_col + (c - min_col)
+            )
+            copy_cell(src, dst)
+
 # =========================
 # API
 # =========================
@@ -59,61 +85,45 @@ async def process(
     base_xls: UploadFile = File(...),
     data_zip: UploadFile = File(...)
 ):
-   # 1. 建立工作資料夾
     work = tempfile.mkdtemp(prefix="work_")
 
     base_path = os.path.join(work, "base.xlsx")
     zip_path = os.path.join(work, "data.zip")
 
-    # 2. 存 base.xlsx
     with open(base_path, "wb") as f:
         shutil.copyfileobj(base_xls.file, f)
 
-    # 3. 存 zip
     with open(zip_path, "wb") as f:
         shutil.copyfileobj(data_zip.file, f)
 
-    # 4. 解壓 zip
+    # 解壓
     extract_dir = os.path.join(work, "extract")
     os.makedirs(extract_dir, exist_ok=True)
-
     with zipfile.ZipFile(zip_path, "r") as z:
         z.extractall(extract_dir)
 
-    # 5. 找 Excel 檔
+    # 找 Excel
     excel_file = None
     for root, _, files in os.walk(extract_dir):
         for f in files:
-            if f.endswith((".xls", ".xlsx")):
+            if f.endswith((".xlsx", ".xls")):
                 excel_file = os.path.join(root, f)
                 break
 
-    if not excel_file:
-        return {"error": "ZIP 內沒有 Excel 檔"}
+    # 開啟兩個 Excel（重點）
+    src_wb = load_workbook(excel_file)
+    src_ws = src_wb.active
 
-    # 6. 讀 Excel（所有 sheet）
-    xls = pd.ExcelFile(excel_file)
+    dst_wb = load_workbook(base_path)
+    dst_ws = dst_wb.active
 
-    result_sheets = {}
-
-    # 7. 依序處理 sheet
-    for i, sheet_name in enumerate(xls.sheet_names):
-        df = pd.read_excel(xls, sheet_name=sheet_name)
-
-        print(f"處理第 {i+1} 張 sheet: {sheet_name}")
-
-        result_df = process_sheet(df, sheet_name)
-
-        result_sheets[sheet_name] = result_df
-
-    # 8. 輸出 result.xlsx
-    result_path = os.path.join(work, "result.xlsx")
-
-    with pd.ExcelWriter(result_path, engine="openpyxl") as writer:
-        for sheet_name, df in result_sheets.items():
-            df.to_excel(writer, sheet_name=sheet_name, index=False)
-
-    # =========================
+    # ⭐ 從 ZIP Excel A3:AK36 複製 → 貼到 base A3:AK36
+    copy_range(
+        src_ws, dst_ws,
+        min_row=3, max_row=36,
+        min_col=1, max_col=37,  # A~AK
+        target_row=3, target_col=1
+    )    # =========================
     # 7. 回傳結果檔
     # =========================
     return FileResponse(
