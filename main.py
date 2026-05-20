@@ -75,8 +75,14 @@ async def process(
                     column=c,          # 貼回同樣 C~AK
                     value=val
                 )
+                
+                for i in range(5):
+                    
+                    r = start + i - 2
+                    val = safe(df, r, 1)
 
-        paste_row += 40  # 每個檔案間隔
+                    if val is not None and pd.notna(val):
+                        ws.range(found + i, 2).value = str(val)       
 
     # === 儲存 ===
     dst_wb.save(result_path)
