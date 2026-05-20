@@ -114,11 +114,11 @@ async def process(
 
         # 每個檔案往下空 40 列
         paste_row += 40
-
+        dst_wb.save(result_path)
     # =========================
     # 6. 存檔
     # =========================
-    dst_wb.save(result_path)
+    #dst_wb.save(result_path)
 
     # =========================
     # 7. 回傳結果檔
