@@ -18,62 +18,121 @@ def home():
 
 
 # ✅ API
+import os, shutil, zipfile, tempfile, glob
+from datetime import datetime
+
+import pandas as pd
+import numpy as np
+from fastapi import UploadFile, File
+from fastapi.responses import FileResponse
+from openpyxl import load_workbook
+
 @app.post("/process")
-async def process(base_xls: UploadFile = File(...), data_zip: UploadFile = File(...)):
-    work = "/tmp/work"
-    unzip_dir = os.path.join(work, "unzipped")
-    os.makedirs(unzip_dir, exist_ok=True)
+async def process(base_xls: UploadFile = File(...),
+                  data_zip: UploadFile = File(...)):
+
+    work = tempfile.mkdtemp(prefix="work_")
 
     # === 儲存 base.xlsx ===
     base_path = os.path.join(work, "base.xlsx")
     with open(base_path, "wb") as f:
         shutil.copyfileobj(base_xls.file, f)
 
-    # === 複製成 result.xlsx ===
+    # === 複製成 result.xlsx（最後回傳這個） ===
     result_path = os.path.join(work, "result.xlsx")
     shutil.copy(base_path, result_path)
-    """
-    # === 儲存並解壓 zip ===
+
+    # === 儲存 ZIP ===
     zip_path = os.path.join(work, "data.zip")
     with open(zip_path, "wb") as f:
         shutil.copyfileobj(data_zip.file, f)
 
-    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-        zip_ref.extractall(unzip_dir)
+    # === 解壓 ZIP ===
+    unzip_dir = os.path.join(work, "unzipped")
+    os.makedirs(unzip_dir, exist_ok=True)
 
-    # === 開啟 result.xlsx ===
-    result_wb = load_workbook(result_path)
-    result_ws = result_wb.active
+    with zipfile.ZipFile(zip_path, 'r') as z:
+        z.extractall(unzip_dir)
 
-    # 從 result 最後一列開始往下貼
-    paste_start_row = result_ws.max_row + 2
+    files = glob.glob(os.path.join(unzip_dir, "**", "*.xls*"), recursive=True)
 
-    # === 走訪 zip 內 Excel ===
-    for root, dirs, files in os.walk(unzip_dir):
-        for file in files:
-            if file.endswith(".xlsx"):
-                file_path = os.path.join(root, file)
+    # === 開啟 result.xlsx（openpyxl）===
+    wb = load_workbook(result_path)
 
-                src_wb = load_workbook(file_path, data_only=True)
-                src_ws = src_wb.active
+    LEAVE = {"休", "請假", "休假", "特休", "請假一天"}
 
-                # 複製 C1:AK36
-                for r in range(1, 37):           # 1~36
-                    for c in range(3, 38):       # C(3) ~ AK(37)
-                        value = src_ws.cell(row=r, column=c).value
-                        result_ws.cell(
-                            row=paste_start_row + (r - 1),
-                            column=c - 2,        # 貼到 A 開始
-                            value=value
-                        )
+    for file in files:
 
-                paste_start_row += 40  # 每個檔案間隔
+        try:
+            data = pd.read_excel(file, sheet_name=None)
+        except:
+            continue
 
-    # === 儲存 ===
-    result_wb.save(result_path)
-    """
+        for sh, df in data.items():
+
+            if sh not in wb.sheetnames:
+                continue
+
+            ws = wb[sh]
+
+            if df.shape[1] < 2:
+                continue
+
+            # 範例：從第3列開始，每5列一組
+            for start in range(3, 153, 5):
+
+                r0 = start - 2
+                if r0 >= len(df):
+                    break
+
+                src = str(df.iloc[r0, 0]).strip()
+                if not src:
+                    continue
+
+                # 找空列（A欄）
+                found = None
+                for r in range(3, 153, 5):
+                    if not ws.cell(r, 1).value:
+                        ws.cell(r, 1).value = src
+                        found = r
+                        break
+
+                if not found:
+                    continue
+
+                # ===== Bulk block（B~AK 共36欄）=====
+                block = [[None]*36 for _ in range(5)]
+
+                for i in range(5):
+
+                    r = start + i - 2
+
+                    # B欄
+                    val = df.iloc[r, 1] if r < len(df) else None
+                    if pd.notna(val):
+                        block[i][0] = str(val)
+
+                    # C~AK
+                    for c in range(2, 37):
+                        val = df.iloc[r, c] if (r < len(df) and c < df.shape[1]) else None
+
+                        if pd.isna(val):
+                            continue
+
+                        if isinstance(val, (int, float, np.number)):
+                            block[i][c-1] = val
+                        elif isinstance(val, str) and val.strip() in LEAVE:
+                            block[i][c-1] = "請假"
+
+                # 一次貼上
+                for i in range(5):
+                    for j in range(36):
+                        ws.cell(found + i, 2 + j).value = block[i][j]
+
+    wb.save(result_path)
+
     return FileResponse(
         result_path,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        filename="output.xlsx"
+        filename="result.xlsx"
     )
