@@ -31,8 +31,8 @@ def find_data_sheet(wb):
     for name in wb.sheetnames:
         ws = wb[name]
 
-        # 判斷 C1 是否有資料（你的固定資料起點）
-        if ws.cell(row=1, column=3).value is not None:
+        # 判斷 C1 是否有資料（你的固定資料起點）1,3	#A3
+        if ws.cell(row=3, column=1).value is not None:
             return ws
 
     # 找不到就回傳第一個（保底）
