@@ -1,81 +1,51 @@
+import os
+import shutil
+import zipfile
+import tempfile
+import pandas as pd
+
 from fastapi import FastAPI, UploadFile, File
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-import zipfile, shutil, os
-import pandas as pd
-from openpyxl import Workbook
-import os, shutil, zipfile, tempfile, glob
-from datetime import datetime
-
-import pandas as pd
-import numpy as np
-from fastapi import UploadFile, File
-from fastapi.responses import FileResponse
 from openpyxl import load_workbook
-from copy import copy
 
 app = FastAPI()
 
-# ✅ static 一定只能掛 /static（安全）
+# static 首頁
 app.mount("/static", StaticFiles(directory="static", html=True), name="static")
 
-# ✅ 首頁
 @app.get("/")
 def home():
     return FileResponse("static/index.html")
 
-#start
+
 # =========================
-# 找到真正有資料的 sheet
-# =========================
-def find_data_sheet(wb):
-    for name in wb.sheetnames:
-        ws = wb[name]
-
-        # 判斷 C1 是否有資料（你的固定資料起點）1,3	#A3
-        if ws.cell(row=3, column=1).value is not None:
-            return ws
-
-    # 找不到就回傳第一個（保底）
-    return wb.active
-
-# 🔧 你可以改這裡的處理邏輯
+# 你的資料處理邏輯（可自行修改）
 # =========================
 def process_sheet(df: pd.DataFrame, sheet_name: str) -> pd.DataFrame:
-    """
-    每一個 sheet 的處理邏輯
-    """
     df = df.copy()
-
-    # 範例：新增一欄 sheet 名稱
-    #df["sheet_name"] = sheet_name
-
     return df
 
 
-def copy_cell(src_cell, dst_cell):
-    dst_cell.value = src_cell.value
-    if src_cell.has_style:
-        dst_cell.font = copy(src_cell.font)
-        dst_cell.border = copy(src_cell.border)
-        dst_cell.fill = copy(src_cell.fill)
-        dst_cell.number_format = copy(src_cell.number_format)
-        dst_cell.protection = copy(src_cell.protection)
-        dst_cell.alignment = copy(src_cell.alignment)
-    
-def copy_range(src_ws, dst_ws,
-               min_row, max_row,
-               min_col, max_col,
-               target_row, target_col):
+# =========================
+# 核心：貼到 A3 ~ AK38（不破壞格式）
+# =========================
+def paste_df_to_A3_AK38(ws, df):
+    start_row = 3   # A3
+    start_col = 1   # A
+    max_rows = 36   # 3~38
+    max_cols = 37   # A~AK
 
-    for r in range(min_row, max_row + 1):
-        for c in range(min_col, max_col + 1):
-            src = src_ws.cell(r, c)
-            dst = dst_ws.cell(
-                target_row + (r - min_row),
-                target_col + (c - min_col)
-            )
-            copy_cell(src, dst)
+    rows = min(df.shape[0], max_rows)
+    cols = min(df.shape[1], max_cols)
+
+    for r in range(rows):
+        for c in range(cols):
+            ws.cell(
+                row=start_row + r,
+                column=start_col + c
+            ).value = df.iat[r, c]
+
 
 # =========================
 # API
@@ -90,42 +60,54 @@ async def process(
     base_path = os.path.join(work, "base.xlsx")
     zip_path = os.path.join(work, "data.zip")
 
+    # 儲存上傳檔案
     with open(base_path, "wb") as f:
         shutil.copyfileobj(base_xls.file, f)
 
     with open(zip_path, "wb") as f:
         shutil.copyfileobj(data_zip.file, f)
 
-    # 解壓
+    # 載入範本（保留所有格式）
+    wb = load_workbook(base_path)
+
+    # 解壓 ZIP
     extract_dir = os.path.join(work, "extract")
     os.makedirs(extract_dir, exist_ok=True)
+
     with zipfile.ZipFile(zip_path, "r") as z:
         z.extractall(extract_dir)
 
-    # 找 Excel
-    excel_file = None
+    # 找 ZIP 裡所有 Excel
+    excel_files = []
     for root, _, files in os.walk(extract_dir):
         for f in files:
-            if f.endswith((".xlsx", ".xls")):
-                excel_file = os.path.join(root, f)
-                break
+            if f.endswith((".xls", ".xlsx")):
+                excel_files.append(os.path.join(root, f))
 
-    # 開啟兩個 Excel（重點）
-    src_wb = load_workbook(excel_file)
-    src_ws = src_wb.active
+    if not excel_files:
+        return {"error": "ZIP 內沒有 Excel 檔"}
 
-    dst_wb = load_workbook(base_path)
-    dst_ws = dst_wb.active
+    # === 逐一處理每個 Excel、每個 Sheet ===
+    for excel_path in excel_files:
+        xls = pd.ExcelFile(excel_path)
 
-    # ⭐ 從 ZIP Excel A3:AK36 複製 → 貼到 base A3:AK36
-    copy_range(
-        src_ws, dst_ws,
-        min_row=3, max_row=36,
-        min_col=1, max_col=37,  # A~AK
-        target_row=3, target_col=1
-    )    # =========================
-    # 7. 回傳結果檔
-    # =========================
+        for sheet_name in xls.sheet_names:
+            df = pd.read_excel(xls, sheet_name=sheet_name)
+            result_df = process_sheet(df, sheet_name)
+
+            # 範本沒有這個 sheet 就跳過
+            if sheet_name not in wb.sheetnames:
+                continue
+
+            ws = wb[sheet_name]
+
+            # ⭐貼到 A3
+            paste_df_to_A3_AK38(ws, result_df)
+
+    # 輸出結果
+    result_path = os.path.join(work, "result.xlsx")
+    wb.save(result_path)
+
     return FileResponse(
         result_path,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
