@@ -44,17 +44,7 @@ def process_sheet(df: pd.DataFrame, sheet_name: str) -> pd.DataFrame:
     """
     每一個 sheet 的處理邏輯
     """
-    start_row = 3   # A3
-    start_col = 1   # A
-    max_rows = 36   # 3~38
-    max_cols = 37   # A~AK
-
-    rows = min(df.shape[0], max_rows)
-    cols = min(df.shape[1], max_cols)
-
-    for r in range(rows):
-        for c in range(cols):
-            df = df.copy()
+    df = df.copy()
 
     # 範例：新增一欄 sheet 名稱
     #df["sheet_name"] = sheet_name
@@ -131,4 +121,3 @@ async def process(
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         filename="result.xlsx"
     )
-
