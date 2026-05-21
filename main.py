@@ -20,136 +20,165 @@ def home():
     return FileResponse("static/index.html")
 
 
+
+# =========================
+# xls 轉 xlsx
+# =========================
+def convert_xls_to_xlsx(xls_path, out_dir):
+
+    subprocess.run([
+        "libreoffice",
+        "--headless",
+        "--convert-to",
+        "xlsx",
+        xls_path,
+        "--outdir",
+        out_dir
+    ], check=True)
+
+    filename = os.path.basename(xls_path)
+    xlsx_name = os.path.splitext(filename)[0] + ".xlsx"
+
+    return os.path.join(out_dir, xlsx_name)
+
+
+# =========================
+# 複製儲存格（保格式）
+# =========================
+def copy_cell(src_cell, dst_cell):
+
+    dst_cell.value = src_cell.value
+
+    if src_cell.has_style:
+        dst_cell.font = copy(src_cell.font)
+        dst_cell.fill = copy(src_cell.fill)
+        dst_cell.border = copy(src_cell.border)
+        dst_cell.alignment = copy(src_cell.alignment)
+        dst_cell.number_format = copy(src_cell.number_format)
+        dst_cell.protection = copy(src_cell.protection)
+
+
+# =========================
+# 合併工作表
+# =========================
+def merge_sheet(src_ws, dst_ws):
+
+    max_row = src_ws.max_row
+    max_col = src_ws.max_column
+
+    for r in range(1, max_row + 1):
+        for c in range(1, max_col + 1):
+
+            src_cell = src_ws.cell(r, c)
+            dst_cell = dst_ws.cell(r, c)
+
+            copy_cell(src_cell, dst_cell)
+
+    # 欄寬
+    for col_letter, dim in src_ws.column_dimensions.items():
+        dst_ws.column_dimensions[col_letter].width = dim.width
+
+    # 列高
+    for row_num, dim in src_ws.row_dimensions.items():
+        dst_ws.row_dimensions[row_num].height = dim.height
+
+    # 合併儲存格
+    for merged_range in src_ws.merged_cells.ranges:
+        dst_ws.merge_cells(str(merged_range))
+
+
+
+# =========================
+# API
+# =========================
 @app.post("/process")
 async def process(data_zip: UploadFile = File(...)):
 
-    # =========================
-    # 工作目錄
-    # =========================
-    work = tempfile.mkdtemp(prefix="work_")
+    # 建立暫存目錄
+    work_dir = tempfile.mkdtemp(prefix="excel_")
 
-    # ZIP
-    zip_path = os.path.join(work, "data.zip")
+    zip_path = os.path.join(work_dir, "data.zip")
 
     with open(zip_path, "wb") as f:
         shutil.copyfileobj(data_zip.file, f)
 
-    # 解壓
-    unzip_dir = os.path.join(work, "unzipped")
-    os.makedirs(unzip_dir, exist_ok=True)
+    # 解壓 ZIP
+    extract_dir = os.path.join(work_dir, "extract")
+    os.makedirs(extract_dir)
 
-    with zipfile.ZipFile(zip_path, "r") as z:
-        z.extractall(unzip_dir)
+    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+        zip_ref.extractall(extract_dir)
 
-    # 找所有 Excel
-    files = glob.glob(
-        os.path.join(unzip_dir, "**", "*.xls*"),
-        recursive=True
-    )
+    # 建立 result workbook
+    from openpyxl import Workbook
+    result_wb = Workbook()
 
-    if not files:
-        return {"error": "ZIP 沒有 Excel"}
+    # 移除預設 sheet
+    default_sheet = result_wb.active
+    result_wb.remove(default_sheet)
 
-    # =========================
-    # 建立輸出 Workbook
-    # =========================
-    out_wb = Workbook()
+    # 處理所有 xls/xlsx
+    for file_name in os.listdir(extract_dir):
 
-    # 刪除預設 sheet
-    default_sheet = out_wb.active
-    out_wb.remove(default_sheet)
+        file_path = os.path.join(extract_dir, file_name)
 
-    # 紀錄每個 sheet 已寫到哪
-    sheet_row_map = {}
+        # xls -> xlsx
+        if file_name.lower().endswith(".xls"):
 
-    # =========================
-    # 處理每個 Excel
-    # =========================
-    for excel_file in files:
+            xlsx_path = convert_xls_to_xlsx(
+                file_path,
+                extract_dir
+            )
 
-        try:
-            wb = load_workbook(excel_file, data_only=True)
+        elif file_name.lower().endswith(".xlsx"):
 
-            for sheet_name in wb.sheetnames:
+            xlsx_path = file_path
 
-                src_ws = wb[sheet_name]
+        else:
+            continue
 
-                # 目的 sheet
-                if sheet_name not in out_wb.sheetnames:
-                    out_ws = out_wb.create_sheet(sheet_name)
-                    sheet_row_map[sheet_name] = {}
-                else:
-                    out_ws = out_wb[sheet_name]
+        # 讀取 workbook
+        src_wb = load_workbook(xlsx_path)
 
-                # =========================
-                # A3, A8, A13...
-                # =========================
-                for start_row in range(3, 29, 5):
+        # 所有 sheet
+        for sheet_name in src_wb.sheetnames:
 
-                    key = src_ws[f"A{start_row}"].value
+            src_ws = src_wb[sheet_name]
 
-                    if key is None:
-                        continue
+            # result sheet
+            if sheet_name in result_wb.sheetnames:
+                dst_ws = result_wb[sheet_name]
+            else:
+                dst_ws = result_wb.create_sheet(sheet_name)
 
-                    key = str(key).strip()
+            # 找最後一列
+            start_row = dst_ws.max_row + 1
 
-                    # ==================================
-                    # 找此 key 要貼到哪裡
-                    # ==================================
-                    if key not in sheet_row_map[sheet_name]:
+            if dst_ws.max_row == 1 and dst_ws["A1"].value is None:
+                start_row = 1
 
-                        # 第一次出現
-                        if len(sheet_row_map[sheet_name]) == 0:
-                            target_row = 3
-                        else:
-                            target_row = max(
-                                sheet_row_map[sheet_name].values()
-                            ) + 5
+            # 複製資料
+            for r in range(1, src_ws.max_row + 1):
+                for c in range(1, src_ws.max_column + 1):
 
-                        sheet_row_map[sheet_name][key] = target_row
+                    src_cell = src_ws.cell(r, c)
+                    dst_cell = dst_ws.cell(
+                        start_row + r - 1,
+                        c
+                    )
 
-                        # 寫 A 欄 key
-                        out_ws[f"A{target_row}"] = key
+                    copy_cell(src_cell, dst_cell)
 
-                    else:
-                        target_row = sheet_row_map[sheet_name][key]
+    # 強制重新計算公式
+    result_wb.calculation.fullCalcOnLoad = True
 
-                    # ==================================
-                    # 複製 B~AJ 共5列
-                    # ==================================
-                    for r_offset in range(5):
+    # 輸出
+    result_path = os.path.join(work_dir, "result.xlsx")
 
-                        src_r = start_row + r_offset
-                        dst_r = target_row + r_offset
+    result_wb.save(result_path)
 
-                        # B=2 ~ AJ=36
-                        for col in range(2, 37):
-
-                            value = src_ws.cell(
-                                row=src_r,
-                                column=col
-                            ).value
-
-                            out_ws.cell(
-                                row=dst_r,
-                                column=col
-                            ).value = value
-
-        except Exception as e:
-            print("錯誤:", excel_file, e)
-
-    # =========================
-    # 儲存
-    # =========================
-    result_path = os.path.join(work, "result.xlsx")
-
-    out_wb.save(result_path)
-
-    # =========================
-    # 回傳
-    # =========================
     return FileResponse(
         result_path,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        filename="result.xlsx"
+        filename="result.xlsx",
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
