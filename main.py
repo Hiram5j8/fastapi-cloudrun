@@ -95,8 +95,8 @@ def extract_diff_rows(zip_bytes, base_map):
 
                 wb = load_workbook(
                     BytesIO(f.read()),
-                    data_only=True,
-                    read_only=True
+                    data_only=True
+                    #read_only=True
                 )
 
                 for sheet in wb.sheetnames:
