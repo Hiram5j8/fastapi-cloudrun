@@ -4,6 +4,7 @@ from openpyxl import load_workbook
 from dataclasses import dataclass
 from typing import Any
 from io import BytesIO
+from typing import List
 import zipfile
 from fastapi.staticfiles import StaticFiles
 
@@ -25,7 +26,7 @@ class RowSeries:
     sheet: str
     start_row: int
     start_col: int
-    values: list[Any]
+    values: List[Any]
 
 # =====================================================
 # 建立 base map
