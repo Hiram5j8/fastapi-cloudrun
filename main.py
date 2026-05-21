@@ -10,12 +10,14 @@ from fastapi.staticfiles import StaticFiles
 
 app = FastAPI()
 
+# ✅ static 一定只能掛 /static（安全）
 app.mount("/static", StaticFiles(directory="static", html=True), name="static")
 
-
+# ✅ 首頁
 @app.get("/")
 def home():
     return FileResponse("static/index.html")
+
 
 # =====================================================
 # RowSeries Engine
