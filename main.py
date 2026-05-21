@@ -1,6 +1,7 @@
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import FileResponse
 from openpyxl import load_workbook
+from fastapi.staticfiles import StaticFiles
 import os
 import shutil
 import zipfile
