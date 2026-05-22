@@ -18,7 +18,23 @@
   ">
     載入時間中...
   </div>
+<div id="version"></div>
 
+<script>
+
+async function loadVersion() {
+
+  const res = await fetch("/version");
+
+  const data = await res.json();
+
+  document.getElementById("version").innerText =
+    data.version;
+}
+
+loadVersion();
+
+</script>
   <form id="form">
     <input type="file" name="base_xls"><br><br>
     <input type="file" name="data_zip"><br><br>

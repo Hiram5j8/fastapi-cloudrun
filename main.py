@@ -21,6 +21,7 @@ app = FastAPI()
 # =========================
 VERSION = "2026-05-22 15:30 TXT VERSION"
 
+
 # ✅ static
 app.mount(
     "/static",
