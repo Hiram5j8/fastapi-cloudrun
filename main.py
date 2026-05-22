@@ -28,215 +28,140 @@ app.mount(
 def home():
     return FileResponse("static/index.html")
 
-# =====================================================
-# RowSeries Engine
-# =====================================================
-
-@dataclass
+# =========================
+# RowSeries
+# =========================
 class RowSeries:
-    sheet: str
-    start_row: int
-    start_col: int
-    values: List[Any]
+    def __init__(self, sheet, start_row, start_col, values):
+        self.sheet = sheet
+        self.start_row = start_row
+        self.start_col = start_col
+        self.values = values
 
-# =====================================================
-# 建立 base map
-# sheet -> row -> col -> value
-# =====================================================
+    def write(self):
+        """
+        只寫 value
+        不覆蓋 style
+        """
+        for col_offset, value in enumerate(self.values):
+            cell = self.sheet.cell(
+                row=self.start_row,
+                column=self.start_col + col_offset
+            )
 
-def build_base_map(wb):
+            cell.value = value
 
-    base_map = {}
 
-    for sheet in wb.sheetnames:
+# =========================
+# 比較差異
+# =========================
+def compare_sheet(base_ws, src_ws):
 
-        ws = wb[sheet]
+    diff_rows = []
 
-        sheet_map = {}
+    max_row = min(base_ws.max_row, src_ws.max_row)
+    max_col = min(base_ws.max_column, src_ws.max_column)
 
-        for row in ws.iter_rows():
+    for r in range(1, max_row + 1):
 
-            for cell in row:
+        row_values = []
+        has_diff = False
 
-                if cell.value is None:
-                    continue
+        for c in range(1, max_col + 1):
 
-                r = cell.row
-                c = cell.column
+            base_val = base_ws.cell(r, c).value
+            src_val = src_ws.cell(r, c).value
 
-                if r not in sheet_map:
-                    sheet_map[r] = {}
+            # 差異判斷
+            if base_val != src_val:
+                has_diff = True
 
-                sheet_map[r][c] = cell.value
+            row_values.append(src_val)
 
-        base_map[sheet] = sheet_map
+        # 有差異才記錄
+        if has_diff:
+            diff_rows.append((r, row_values))
 
-    return base_map
+    return diff_rows
 
-# =====================================================
-# ZIP Excel -> RowSeries(diff only)
-# =====================================================
 
-def extract_diff_rows(zip_bytes, base_map):
-
-    row_series_list = []
-
-    with zipfile.ZipFile(BytesIO(zip_bytes)) as z:
-
-        for filename in z.namelist():
-
-            # 只處理 xlsx
-            if not filename.endswith(".xlsx"):
-                continue
-
-            print("處理:", filename)
-
-            with z.open(filename) as f:
-
-                wb = load_workbook(
-                    BytesIO(f.read()),
-                    data_only=True
-                    #read_only=True
-                )
-
-                for sheet in wb.sheetnames:
-
-                    if sheet not in base_map:
-                        continue
-
-                    ws = wb[sheet]
-
-                    for row in ws.iter_rows():
-
-                        values = []
-                        changed = False
-
-                        row_num = row[0].row
-
-                        for cell in row:
-
-                            col_num = cell.column
-
-                            new_val = cell.value
-
-                            base_val = (
-                                base_map
-                                .get(sheet, {})
-                                .get(row_num, {})
-                                .get(col_num)
-                            )
-
-                            # 相同 -> None
-                            if new_val == base_val:
-                                values.append(None)
-
-                            else:
-                                values.append(new_val)
-                                changed = True
-
-                        # 整列沒變 -> skip
-                        if not changed:
-                            continue
-
-                        rs = RowSeries(
-                            sheet=sheet,
-                            start_row=row_num,
-                            start_col=1,
-                            values=values
-                        )
-
-                        row_series_list.append(rs)
-
-    return row_series_list
-
-# =====================================================
-# RowSeries -> Excel
-# =====================================================
-
-def write_series(ws, rs: RowSeries):
-
-    for offset, value in enumerate(rs.values):
-
-        # None 跳過
-        if value is None:
-            continue
-
-        ws.cell(
-            row=rs.start_row,
-            column=rs.start_col + offset
-        ).value = value
-
-# =====================================================
+# =========================
 # API
-# =====================================================
-
-@app.post("/merge")
-async def merge(
-    base_xlsx: UploadFile = File(...),
+# =========================
+@app.post("/process")
+async def process(
+    base_xls: UploadFile = File(...),
     data_zip: UploadFile = File(...)
 ):
 
-    # =====================================
-    # 1. 讀 base.xlsx
-    # =====================================
+    # 工作目錄
+    work = tempfile.mkdtemp(prefix="excel_")
 
-    base_bytes = await base_xlsx.read()
+    # base
+    base_path = os.path.join(work, base_xls.filename)
 
-    base_wb = load_workbook(BytesIO(base_bytes))
+    with open(base_path, "wb") as f:
+        shutil.copyfileobj(base_xls.file, f)
 
-    # =====================================
-    # 2. 建立 base map
-    # =====================================
+    # zip
+    zip_path = os.path.join(work, data_zip.filename)
 
-    base_map = build_base_map(base_wb)
+    with open(zip_path, "wb") as f:
+        shutil.copyfileobj(data_zip.file, f)
 
-    # =====================================
-    # 3. 讀 ZIP
-    # =====================================
+    # 解壓縮
+    unzip_dir = os.path.join(work, "unzipped")
+    os.makedirs(unzip_dir, exist_ok=True)
 
-    zip_bytes = await data_zip.read()
+    with zipfile.ZipFile(zip_path, "r") as z:
+        z.extractall(unzip_dir)
 
-    # =====================================
-    # 4. 建立 RowSeries(diff only)
-    # =====================================
+    # 開 base workbook
+    result_wb = load_workbook(base_path)
 
-    rows = extract_diff_rows(zip_bytes, base_map)
+    # 掃描 ZIP Excel
+    for file in os.listdir(unzip_dir):
 
-    print("diff rows:", len(rows))
-
-    # =====================================
-    # 5. 寫入 result
-    # =====================================
-
-    result_wb = load_workbook(BytesIO(base_bytes))
-
-    for rs in rows:
-
-        if rs.sheet not in result_wb.sheetnames:
+        if not file.endswith((".xlsx", ".xlsm")):
             continue
 
-        ws = result_wb[rs.sheet]
+        src_path = os.path.join(unzip_dir, file)
 
-        write_series(ws, rs)
+        print("處理:", file)
 
-    # =====================================
-    # 6. 輸出記憶體
-    # =====================================
+        src_wb = load_workbook(src_path, data_only=False)
 
-    output = BytesIO()
+        # sheet 比對
+        for sheet_name in src_wb.sheetnames:
 
-    result_wb.save(output)
+            if sheet_name not in result_wb.sheetnames:
+                continue
 
-    output.seek(0)
+            base_ws = result_wb[sheet_name]
+            src_ws = src_wb[sheet_name]
 
-    # =====================================
-    # 7. 回傳 result.xlsx
-    # =====================================
+            # 差異分析
+            diff_rows = compare_sheet(base_ws, src_ws)
 
-    return StreamingResponse(
-        output,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={
-            "Content-Disposition": "attachment; filename=result.xlsx"
-        }
+            # 寫回
+            for row_num, values in diff_rows:
+
+                rs = RowSeries(
+                    sheet=base_ws,
+                    start_row=row_num,
+                    start_col=1,
+                    values=values
+                )
+
+                rs.write()
+
+    # 輸出
+    result_path = os.path.join(work, "result.xlsx")
+
+    result_wb.save(result_path)
+
+    return FileResponse(
+        result_path,
+        filename="result.xlsx",
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
