@@ -35,7 +35,7 @@ def home():
 # =========================
 # 版本 API
 # =========================
-VERSION = "2026-05-22 1423"
+VERSION = "2026-05-22 1429"
 
 @app.get("/version")
 def version():
@@ -224,7 +224,10 @@ async def process(
                             row=row_num,
                             column=col_num
                         )
-
+                        # 只改值
+                        target_cell.value = value
+                        
+                        """
                         # =====================================
                         # 有公式 -> 不覆蓋
                         # =====================================
@@ -249,7 +252,7 @@ async def process(
                         target_cell.font = original_font
                         target_cell.border = original_border
                         target_cell.alignment = original_alignment
-    
+                        """
     # 儲存
     result_path = os.path.join(work, "Result.xlsx")
 
