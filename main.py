@@ -16,6 +16,11 @@ import zipfile
 
 app = FastAPI()
 
+# =========================
+# 版本資訊
+# =========================
+VERSION = "2026-05-22 15:30 TXT VERSION"
+
 # ✅ static
 app.mount(
     "/static",
@@ -27,6 +32,15 @@ app.mount(
 @app.get("/")
 def home():
     return FileResponse("static/index.html")
+
+# =========================
+# 版本 API
+# =========================
+@app.get("/version")
+async def version():
+    return JSONResponse({
+        "version": VERSION
+    })
 
 # =========================
 # RowSeries
