@@ -33,7 +33,7 @@ def home():
 # =========================
 # 版本 API
 # =========================
-VERSION = "2026-05-22 1522"
+VERSION = "2026-05-22 1604"
 
 @app.get("/version")
 def version():
@@ -111,15 +111,11 @@ async def process(
     # 開啟 base
     base_wb = load_workbook(base_path)
     
-    #change xlsx
     # 開啟 Result.xlsx
-    result_wb = load_workbook(result_path, data_only=True)
-    
-    #LEAVE = {"休", "請假", "休假", "特休", "請假一天"}
-    
+    result_wb = load_workbook(result_path)  
     
     # TXT 結果
-    txt_path = os.path.join(work, "Result.txt")
+    #txt_path = os.path.join(work, "Result.txt")
 
     with open(txt_path, "w", encoding="utf-8") as txt_fp:
 
@@ -131,7 +127,7 @@ async def process(
 
             src_path = os.path.join(unzip_dir, file)
 
-            print("處理:", file)
+            #print("處理:", file)
 
             src_wb = load_workbook(src_path, data_only=False)
 
@@ -162,9 +158,6 @@ async def process(
 
                         # 空白跳過
                         if value_str == "":
-                            continue
-                        #=SUM跳過
-                        if value_str == "=SUM":
                             continue
 
                         col_num = 1 + col_offset
