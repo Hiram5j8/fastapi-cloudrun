@@ -1,13 +1,11 @@
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
-
 from openpyxl import load_workbook, Workbook
-
 from dataclasses import dataclass
 from typing import Any, List
-
 from io import BytesIO
+
 import zipfile
 import os
 import shutil
@@ -35,7 +33,7 @@ def home():
 # =========================
 # 版本 API
 # =========================
-VERSION = "2026-05-22 1500"
+VERSION = "2026-05-22 1515"
 
 @app.get("/version")
 def version():
@@ -166,7 +164,7 @@ async def process(
     
     #change xlsx
     # 開啟 Result.xlsx
-    result_wb = load_workbook(result_path)
+    result_wb = load_workbook(result_path, data_only=False)
     
     #LEAVE = {"休", "請假", "休假", "特休", "請假一天"}
     
