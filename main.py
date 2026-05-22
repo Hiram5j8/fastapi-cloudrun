@@ -33,7 +33,7 @@ def home():
 # =========================
 # 版本 API
 # =========================
-VERSION = "2026-05-22 1604"
+VERSION = "2026-05-22 1609"
 
 @app.get("/version")
 def version():
@@ -115,7 +115,7 @@ async def process(
     result_wb = load_workbook(result_path)  
     
     # TXT 結果
-    #txt_path = os.path.join(work, "Result.txt")
+    txt_path = os.path.join(work, "Result.txt")
 
     with open(txt_path, "w", encoding="utf-8") as txt_fp:
 
