@@ -38,18 +38,25 @@ class RowSeries:
         self.start_col = start_col
         self.values = values
 
-    def write(self):
+    def write_txt(self, fp):
         """
-        只寫 value
-        不覆蓋 style
+        輸出 TXT
         """
-        for col_offset, value in enumerate(self.values):
-            cell = self.sheet.cell(
-                row=self.start_row,
-                column=self.start_col + col_offset
-            )
 
-            cell.value = value
+        row_text = []
+
+        for col_offset, value in enumerate(self.values):
+
+            col_num = self.start_col + col_offset
+
+            cell_ref = f"R{self.start_row}C{col_num}"
+
+            if value is None:
+                value = ""
+
+            row_text.append(f"{cell_ref}={value}")
+
+        fp.write(",".join(row_text) + "\n")
 
 
 # =========================
@@ -78,7 +85,7 @@ def compare_sheet(base_ws, src_ws):
 
             row_values.append(src_val)
 
-        # 有差異才記錄
+        # 有差異才輸出
         if has_diff:
             diff_rows.append((r, row_values))
 
@@ -116,52 +123,58 @@ async def process(
     with zipfile.ZipFile(zip_path, "r") as z:
         z.extractall(unzip_dir)
 
-    # 開 base workbook
-    result_wb = load_workbook(base_path)
+    # 開啟 base
+    base_wb = load_workbook(base_path)
 
-    # 掃描 ZIP Excel
-    for file in os.listdir(unzip_dir):
+    # TXT 結果
+    txt_path = os.path.join(work, "result.txt")
 
-        if not file.endswith((".xlsx", ".xlsm")):
-            continue
+    with open(txt_path, "w", encoding="utf-8") as txt_fp:
 
-        src_path = os.path.join(unzip_dir, file)
+        # 掃描 ZIP
+        for file in os.listdir(unzip_dir):
 
-        print("處理:", file)
-
-        src_wb = load_workbook(src_path, data_only=False)
-
-        # sheet 比對
-        for sheet_name in src_wb.sheetnames:
-
-            if sheet_name not in result_wb.sheetnames:
+            if not file.endswith((".xlsx", ".xlsm")):
                 continue
 
-            base_ws = result_wb[sheet_name]
-            src_ws = src_wb[sheet_name]
+            src_path = os.path.join(unzip_dir, file)
 
-            # 差異分析
-            diff_rows = compare_sheet(base_ws, src_ws)
+            print("處理:", file)
 
-            # 寫回
-            for row_num, values in diff_rows:
+            txt_fp.write("=" * 60 + "\n")
+            txt_fp.write(f"FILE: {file}\n")
+            txt_fp.write("=" * 60 + "\n")
 
-                rs = RowSeries(
-                    sheet=base_ws,
-                    start_row=row_num,
-                    start_col=1,
-                    values=values
-                )
+            src_wb = load_workbook(src_path, data_only=False)
 
-                rs.write()
+            # sheet 比較
+            for sheet_name in src_wb.sheetnames:
 
-    # 輸出
-    result_path = os.path.join(work, "result.xlsx")
+                if sheet_name not in base_wb.sheetnames:
+                    continue
 
-    result_wb.save(result_path)
+                base_ws = base_wb[sheet_name]
+                src_ws = src_wb[sheet_name]
+
+                txt_fp.write(f"\n[SHEET] {sheet_name}\n")
+
+                # 差異
+                diff_rows = compare_sheet(base_ws, src_ws)
+
+                # 輸出 TXT
+                for row_num, values in diff_rows:
+
+                    rs = RowSeries(
+                        sheet=src_ws,
+                        start_row=row_num,
+                        start_col=1,
+                        values=values
+                    )
+
+                    rs.write_txt(txt_fp)
 
     return FileResponse(
-        result_path,
-        filename="result.xlsx",
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        txt_path,
+        filename="result.txt",
+        media_type="text/plain"
     )
