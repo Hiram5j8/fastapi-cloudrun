@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <meta charset="UTF-8">
   <title>Upload Test</title>
@@ -9,82 +10,69 @@
 
   <h2>Upload Excel + ZIP</h2>
 
-  <!-- 日期時間 -->
-  <div id="datetime" style="
-    font-size:20px;
+  <!-- VERSION -->
+  <div id="version" style="
+    font-size:18px;
     font-weight:bold;
+    color:blue;
     margin-bottom:20px;
-    color:#333;
   ">
-    載入時間中...
+    VERSION LOADING...
   </div>
-<div id="version"></div>
 
-<script>
-
-async function loadVersion() {
-
-  const res = await fetch("/version");
-
-  const data = await res.json();
-
-  document.getElementById("version").innerText =
-    data.version;
-}
-
-loadVersion();
-
-</script>
+  <!-- FORM -->
   <form id="form">
-    <input type="file" name="base_xls"><br><br>
-    <input type="file" name="data_zip"><br><br>
-    <button type="submit">Upload</button><br><br>
-	<div id="version" style="
-  	font-size:18px;
-  	font-weight:bold;
-  	color:blue;
-  	margin-bottom:20px;
-	">
-  	VERSION LOADING...
-	</div>
+
+    <!-- BASE XLS -->
+    <input type="file" name="base_xls">
+    <br><br>
+
+    <!-- DATA ZIP -->
+    <input type="file" name="data_zip">
+    <br><br>
+
+    <!-- BUTTON -->
+    <button type="submit">
+      Upload
+    </button>
+
   </form>
 
+  <br>
+
+  <!-- RESULT -->
   <pre id="result"></pre>
 
+  <!-- VERSION SCRIPT -->
   <script>
 
-    // =========================
-    // 日期時間
-    // =========================
-    function updateDateTime() {
+    async function loadVersion() {
 
-      const now = new Date();
+      try {
 
-      const year = now.getFullYear();
-      const month = String(now.getMonth() + 1).padStart(2, '0');
-      const day = String(now.getDate()).padStart(2, '0');
+        const res = await fetch("/version");
 
-      const hour = String(now.getHours()).padStart(2, '0');
-      const minute = String(now.getMinutes()).padStart(2, '0');
-      const second = String(now.getSeconds()).padStart(2, '0');
+        const data = await res.json();
 
-      const text =
-        `${year}-${month}-${day} ` +
-        `${hour}:${minute}:${second}`;
+        document.getElementById("version").innerText =
+          "VERSION : " + data.version;
 
-      document.getElementById("datetime").innerText = text;
+      } catch (err) {
+
+        document.getElementById("version").innerText =
+          "VERSION LOAD ERROR";
+
+      }
+
     }
 
-    // 初始化
-    updateDateTime();
+    loadVersion();
 
-    // 每秒更新
-    setInterval(updateDateTime, 1000);
+  </script>
 
+  <!-- UPLOAD SCRIPT -->
+  <script>
 
-    // =========================
-    // Upload
-    // =========================
     const form = document.getElementById("form");
 
     form.onsubmit = async (e) => {
@@ -92,33 +80,51 @@ loadVersion();
       e.preventDefault();
 
       document.getElementById("result").textContent =
-        "檔案處理中，請稍候...";
+        "上傳中...";
 
-      const formData = new FormData(form);
+      try {
 
-      const res = await fetch("/process", {
-        method: "POST",
-        body: formData
-      });
+        const formData = new FormData(form);
 
-      const blob = await res.blob();
+        const res = await fetch("/process", {
+          method: "POST",
+          body: formData
+        });
 
-      document.getElementById("result").textContent =
-        "下載完成（result.txt）";
+        if (!res.ok) {
 
-      const url = window.URL.createObjectURL(blob);
+          document.getElementById("result").textContent =
+            "處理失敗";
 
-      const a = document.createElement("a");
+          return;
+        }
 
-      a.href = url;
+        const blob = await res.blob();
 
-      // TXT
-      a.download = "result.txt";
+        document.getElementById("result").textContent =
+          "下載完成";
 
-      a.click();
+        const url = window.URL.createObjectURL(blob);
+
+        const a = document.createElement("a");
+
+        a.href = url;
+
+        a.download = "result.txt";
+
+        a.click();
+
+      } catch (err) {
+
+        document.getElementById("result").textContent =
+          "發生錯誤";
+
+      }
+
     };
 
   </script>
 
 </body>
+
 </html>

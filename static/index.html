@@ -1,70 +1,130 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <meta charset="UTF-8">
   <title>Upload Test</title>
 </head>
+
 <body>
+
   <h2>Upload Excel + ZIP</h2>
 
+  <!-- VERSION -->
+  <div id="version" style="
+    font-size:18px;
+    font-weight:bold;
+    color:blue;
+    margin-bottom:20px;
+  ">
+    VERSION LOADING...
+  </div>
+
+  <!-- FORM -->
   <form id="form">
-    <input type="file" name="base_xls"><br><br>
-    <input type="file" name="data_zip"><br><br>
-    <button type="submit">Upload</button><br><br>
-	<div id="version" style="
-  	font-size:18px;
-  	font-weight:bold;
-  	color:blue;
-  	margin-bottom:20px;
-	">
-  	VERSION LOADING...
-	</div><br><br>
-	<div id="version" style="
-<div id="version"></div>
 
-<script>
+    <!-- BASE XLS -->
+    <input type="file" name="base_xls">
+    <br><br>
 
-async function loadVersion() {
+    <!-- DATA ZIP -->
+    <input type="file" name="data_zip">
+    <br><br>
 
-  const res = await fetch("/version");
+    <!-- BUTTON -->
+    <button type="submit">
+      Upload
+    </button>
 
-  const data = await res.json();
-
-  document.getElementById("version").innerText =
-    data.version;
-}
-
-loadVersion();
-
-</script>
   </form>
 
+  <br>
+
+  <!-- RESULT -->
   <pre id="result"></pre>
 
+  <!-- VERSION SCRIPT -->
   <script>
+
+    async function loadVersion() {
+
+      try {
+
+        const res = await fetch("/version");
+
+        const data = await res.json();
+
+        document.getElementById("version").innerText =
+          "VERSION : " + data.version;
+
+      } catch (err) {
+
+        document.getElementById("version").innerText =
+          "VERSION LOAD ERROR";
+
+      }
+
+    }
+
+    loadVersion();
+
+  </script>
+
+  <!-- UPLOAD SCRIPT -->
+  <script>
+
     const form = document.getElementById("form");
 
     form.onsubmit = async (e) => {
+
       e.preventDefault();
 
-      const formData = new FormData(form);
-
-      const res = await fetch("/process", {
-        method: "POST",
-        body: formData
-      });
-
-      const blob = await res.blob();
-
       document.getElementById("result").textContent =
-        "下載完成（result.txt）";
+        "上傳中...";
 
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "result.txt";
-      a.click();
+      try {
+
+        const formData = new FormData(form);
+
+        const res = await fetch("/process", {
+          method: "POST",
+          body: formData
+        });
+
+        if (!res.ok) {
+
+          document.getElementById("result").textContent =
+            "處理失敗";
+
+          return;
+        }
+
+        const blob = await res.blob();
+
+        document.getElementById("result").textContent =
+          "下載完成";
+
+        const url = window.URL.createObjectURL(blob);
+
+        const a = document.createElement("a");
+
+        a.href = url;
+
+        a.download = "result.txt";
+
+        a.click();
+
+      } catch (err) {
+
+        document.getElementById("result").textContent =
+          "發生錯誤";
+
+      }
+
     };
+
   </script>
+
 </body>
+
 </html>
