@@ -127,7 +127,7 @@ async def process(
     base_wb = load_workbook(base_path)
 
     # TXT 結果
-    txt_path = os.path.join(work, "result.txt")
+    txt_path = os.path.join(work, "hiram.txt")
 
     with open(txt_path, "w", encoding="utf-8") as txt_fp:
 
@@ -175,6 +175,6 @@ async def process(
 
     return FileResponse(
         txt_path,
-        filename="result.txt",
+        filename="hiram.txt",
         media_type="text/plain"
     )
