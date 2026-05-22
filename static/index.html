@@ -18,7 +18,25 @@
   	margin-bottom:20px;
 	">
   	VERSION LOADING...
-	</div>
+	</div><br><br>
+	<div id="version" style="
+<div id="version"></div>
+
+<script>
+
+async function loadVersion() {
+
+  const res = await fetch("/version");
+
+  const data = await res.json();
+
+  document.getElementById("version").innerText =
+    data.version;
+}
+
+loadVersion();
+
+</script>
   </form>
 
   <pre id="result"></pre>
@@ -39,12 +57,12 @@
       const blob = await res.blob();
 
       document.getElementById("result").textContent =
-        "下載完成（result.xlsx）";
+        "下載完成（result.txt）";
 
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "result.xlsx";
+      a.download = "result.txt";
       a.click();
     };
   </script>
