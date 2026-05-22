@@ -145,8 +145,8 @@ async def process(
     with open(base_path, "wb") as f:
         shutil.copyfileobj(base_xls.file, f)
     # 直接複製成 result.xlsx
-    result_path = os.path.join(work, "result.xlsx")
-    shutil.copy(upload_path, result_path)
+    result_path = os.path.join(work, "Result.xlsx")
+    shutil.copy(base_path, result_path)
     
     # zip
     zip_path = os.path.join(work, data_zip.filename)
@@ -165,11 +165,11 @@ async def process(
     base_wb = load_workbook(base_path)
     
     #change xlsx
-    result_wb = Workbook()
-    result_ws = result_wb.active
-    result_ws.title = "RESULT"
+    # 開啟 Result.xlsx
+    result_wb = load_workbook(result_path)
     
     LEAVE = {"休", "請假", "休假", "特休", "請假一天"}
+    
     
     # TXT 結果
     txt_path = os.path.join(work, "Result.txt")
@@ -185,11 +185,7 @@ async def process(
             src_path = os.path.join(unzip_dir, file)
 
             print("處理:", file)
-            """
-            txt_fp.write("=" * 60 + "\n")
-            txt_fp.write(f"FILE: {file}\n")
-            txt_fp.write("=" * 60 + "\n")
-            """
+
             src_wb = load_workbook(src_path, data_only=False)
 
             # sheet 比較
@@ -200,7 +196,8 @@ async def process(
 
                 base_ws = base_wb[sheet_name]
                 src_ws = src_wb[sheet_name]
-
+                result_ws = result_wb[sheet_name]	#add
+                
                 txt_fp.write(f"\n[SHEET] {sheet_name}\n")
 
                 # 差異
@@ -220,25 +217,12 @@ async def process(
 
                         col_num = 1 + col_offset
 
-                        result_ws.cell(
+                        target_cell = result_ws.cell(
                             row=row_num,
-                            column=col_num,
-                            value=value_str
+                            column=col_num
                         )
-                
-                """
-                # 輸出 TXT
-                for row_num, values in diff_rows:
-
-                    rs = RowSeries(
-                        sheet=src_ws,
-                        start_row=row_num,
-                        start_col=1,
-                        values=values
-                    )
-
-                    rs.write_txt(txt_fp)
-                """                    
+                        # 只改值
+                        target_cell.value = value
     
     # 儲存
     result_path = os.path.join(work, "Result.xlsx")
@@ -250,11 +234,3 @@ async def process(
         filename="Result.xlsx",
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
-
-"""
-    return FileResponse(
-        txt_path,
-        filename="Result.txt",
-        media_type="text/plain"
-    )
-"""
