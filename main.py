@@ -35,7 +35,7 @@ def home():
 # =========================
 # 版本 API
 # =========================
-VERSION = "2026-05-22 1452"
+VERSION = "2026-05-22 1500"
 
 @app.get("/version")
 def version():
@@ -216,6 +216,9 @@ async def process(
                         # 空白跳過
                         if value_str == "":
                             continue
+                        #=SUM跳過
+                        if value_str == "=SUM":
+                            continue
 
                         col_num = 1 + col_offset
 
@@ -254,7 +257,6 @@ async def process(
                         target_cell.alignment = original_alignment
                         """
     
-    #result_path = os.path.join(work, "Result.xlsx")
     # 儲存
     result_wb.save(result_path)
 
