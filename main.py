@@ -35,7 +35,7 @@ def home():
 # =========================
 # 版本 API
 # =========================
-VERSION = "2026-05-22 1429"
+VERSION = "2026-05-22 1452"
 
 @app.get("/version")
 def version():
@@ -168,7 +168,7 @@ async def process(
     # 開啟 Result.xlsx
     result_wb = load_workbook(result_path)
     
-    LEAVE = {"休", "請假", "休假", "特休", "請假一天"}
+    #LEAVE = {"休", "請假", "休假", "特休", "請假一天"}
     
     
     # TXT 結果
@@ -198,7 +198,7 @@ async def process(
                 src_ws = src_wb[sheet_name]
                 result_ws = result_wb[sheet_name]	#add
                 
-                txt_fp.write(f"\n[SHEET] {sheet_name}\n")
+                #txt_fp.write(f"\n[SHEET] {sheet_name}\n")
 
                 # 差異
                 diff_rows = compare_sheet(base_ws, src_ws)
@@ -253,9 +253,9 @@ async def process(
                         target_cell.border = original_border
                         target_cell.alignment = original_alignment
                         """
+    
+    #result_path = os.path.join(work, "Result.xlsx")
     # 儲存
-    result_path = os.path.join(work, "Result.xlsx")
-
     result_wb.save(result_path)
 
     return FileResponse(
