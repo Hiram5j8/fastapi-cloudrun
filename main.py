@@ -35,7 +35,7 @@ def home():
 # =========================
 # 版本 API
 # =========================
-VERSION = "2026-05-22 15:30"
+VERSION = "2026-05-22 1033"
 
 @app.get("/version")
 def version():
@@ -43,36 +43,56 @@ def version():
         "version": VERSION
     }
 
-# =========================
+# =====================================================
 # RowSeries
-# =========================
+# =====================================================
+
 class RowSeries:
-    def __init__(self, sheet, start_row, start_col, values):
+
+    def __init__(
+        self,
+        sheet,
+        start_row,
+        start_col,
+        values
+    ):
+
         self.sheet = sheet
         self.start_row = start_row
         self.start_col = start_col
         self.values = values
 
     def write_txt(self, fp):
-        """
-        輸出 TXT
-        """
 
         row_text = []
 
         for col_offset, value in enumerate(self.values):
 
+            # 空值跳過
+            if value is None:
+                continue
+
+            value_str = str(value).strip()
+
+            # 空白跳過
+            if value_str == "":
+                continue
+
             col_num = self.start_col + col_offset
 
             cell_ref = f"R{self.start_row}C{col_num}"
 
-            if value is None:
-                value = ""
+            row_text.append(
+                f"{cell_ref}={value_str}"
+            )
 
-            row_text.append(f"{cell_ref}={value}")
+        # 整列都空 -> 不輸出
+        if not row_text:
+            return
 
-        fp.write(",".join(row_text) + "\n")
-
+        fp.write(
+            ",".join(row_text) + "\n"
+        )
 
 # =========================
 # 比較差異
