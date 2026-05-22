@@ -35,7 +35,7 @@ def home():
 # =========================
 # 版本 API
 # =========================
-VERSION = "2026-05-22 1423"
+VERSION = "2026-05-22 1339"
 
 @app.get("/version")
 def version():
@@ -204,51 +204,25 @@ async def process(
                 diff_rows = compare_sheet(base_ws, src_ws)
                 
                 for row_num, values in diff_rows:
-                    
+
                     for col_offset, value in enumerate(values):
 
-                        # 空值跳過
                         if value is None:
                             continue
 
                         value_str = str(value).strip()
 
-                        # 空白跳過
                         if value_str == "":
                             continue
 
                         col_num = 1 + col_offset
 
-                        # Result Cell
                         target_cell = result_ws.cell(
                             row=row_num,
                             column=col_num
                         )
-
-                        # =====================================
-                        # 有公式 -> 不覆蓋
-                        # =====================================
-                        if isinstance(target_cell.value, str):
-                            if target_cell.value.startswith("="):
-                                continue
-
-                        # =====================================
-                        # 保留格式
-                        # 只更新 value
-                        # =====================================
-                        original_format = target_cell.number_format
-                        original_fill = target_cell.fill
-                        original_font = target_cell.font
-                        original_border = target_cell.border
-                        original_alignment = target_cell.alignment
+                        # 只改值
                         target_cell.value = value
-
-                        # 還原格式
-                        target_cell.number_format = original_format
-                        target_cell.fill = original_fill
-                        target_cell.font = original_font
-                        target_cell.border = original_border
-                        target_cell.alignment = original_alignment
     
     # 儲存
     result_path = os.path.join(work, "Result.xlsx")
