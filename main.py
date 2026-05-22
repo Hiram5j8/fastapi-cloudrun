@@ -2,7 +2,7 @@ from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from openpyxl import load_workbook
+from openpyxl import load_workbook, Workbook
 
 from dataclasses import dataclass
 from typing import Any, List
@@ -12,7 +12,7 @@ import zipfile
 import os
 import shutil
 import tempfile
-import zipfile
+import re
 
 # =====================================================
 # FastAPI
@@ -144,7 +144,10 @@ async def process(
 
     with open(base_path, "wb") as f:
         shutil.copyfileobj(base_xls.file, f)
-
+    # 直接複製成 result.xlsx
+    result_path = os.path.join(work, "result.xlsx")
+    shutil.copy(upload_path, result_path)
+    
     # zip
     zip_path = os.path.join(work, data_zip.filename)
 
@@ -160,7 +163,12 @@ async def process(
 
     # 開啟 base
     base_wb = load_workbook(base_path)
-
+    
+    #change xlsx
+    result_wb = Workbook()
+    result_ws = result_wb.active
+    result_ws.title = "RESULT"
+    
     # TXT 結果
     txt_path = os.path.join(work, "Result.txt")
 
@@ -195,7 +203,28 @@ async def process(
 
                 # 差異
                 diff_rows = compare_sheet(base_ws, src_ws)
+                
+                for row_num, values in diff_rows:
 
+                    for col_offset, value in enumerate(values):
+
+                        if value is None:
+                            continue
+
+                        value_str = str(value).strip()
+
+                        if value_str == "":
+                            continue
+
+                        col_num = 1 + col_offset
+
+                        result_ws.cell(
+                            row=row_num,
+                            column=col_num,
+                            value=value_str
+                        )
+                
+                """
                 # 輸出 TXT
                 for row_num, values in diff_rows:
 
@@ -207,9 +236,23 @@ async def process(
                     )
 
                     rs.write_txt(txt_fp)
+                """                    
+    
+    # 儲存
+    result_path = os.path.join(work, "Result.xlsx")
 
+    result_wb.save(result_path)
+
+    return FileResponse(
+        path=result_path,
+        filename="Result.xlsx",
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+"""
     return FileResponse(
         txt_path,
         filename="Result.txt",
         media_type="text/plain"
     )
+"""
