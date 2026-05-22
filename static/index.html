@@ -3,7 +3,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>Upload Test</title>
+  <title>Upload XLS</title>
 </head>
 
 <body>
@@ -24,11 +24,17 @@
   <form id="form">
 
     <!-- BASE XLS -->
-    <input type="file" name="base_xls">
+    <input
+      type="file"
+      name="base_xls"
+      accept=".xls,.xlsx">
     <br><br>
 
     <!-- DATA ZIP -->
-    <input type="file" name="data_zip">
+    <input
+      type="file"
+      name="data_zip"
+      accept=".zip">
     <br><br>
 
     <!-- BUTTON -->
@@ -99,22 +105,35 @@
           return;
         }
 
+        // 取得檔案資料
         const blob = await res.blob();
 
         document.getElementById("result").textContent =
           "下載完成";
 
+        // 建立下載連結
         const url = window.URL.createObjectURL(blob);
 
         const a = document.createElement("a");
 
         a.href = url;
 
-        a.download = "result.xlsx";
+        // 改成 XLS
+        a.download = "result.xls";
+
+        // 自動下載
+        document.body.appendChild(a);
 
         a.click();
 
+        document.body.removeChild(a);
+
+        // 釋放記憶體
+        window.URL.revokeObjectURL(url);
+
       } catch (err) {
+
+        console.error(err);
 
         document.getElementById("result").textContent =
           "發生錯誤";

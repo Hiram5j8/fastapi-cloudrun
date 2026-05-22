@@ -35,7 +35,7 @@ def home():
 # =========================
 # 版本 API
 # =========================
-VERSION = "2026-05-22 1332"
+VERSION = "2026-05-22 1339"
 
 @app.get("/version")
 def version():
@@ -169,6 +169,8 @@ async def process(
     result_ws = result_wb.active
     result_ws.title = "RESULT"
     
+    LEAVE = {"休", "請假", "休假", "特休", "請假一天"}
+    
     # TXT 結果
     txt_path = os.path.join(work, "Result.txt")
 
@@ -183,11 +185,11 @@ async def process(
             src_path = os.path.join(unzip_dir, file)
 
             print("處理:", file)
-
+            """
             txt_fp.write("=" * 60 + "\n")
             txt_fp.write(f"FILE: {file}\n")
             txt_fp.write("=" * 60 + "\n")
-
+            """
             src_wb = load_workbook(src_path, data_only=False)
 
             # sheet 比較
