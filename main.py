@@ -33,7 +33,7 @@ def home():
 # =========================
 # Version
 # =========================
-VERSION = "2026-05-25 1620"
+VERSION = "2026-05-25 1626"
 
 @app.get("/version")
 def version():
@@ -190,13 +190,6 @@ async def process(
     # =========================
     # 9. Return file
     # =========================
-        # 驗證
-    if captcha != current_captcha:
-
-        return Response(
-            content="Captcha Error",
-            status_code=400
-        )
     return FileResponse(
         path=result_path,
         filename="Result.xlsx",
