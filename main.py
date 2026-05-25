@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from openpyxl import load_workbook, Workbook
@@ -36,7 +36,7 @@ def home():
 # =========================
 # 版本 API
 # =========================
-VERSION = "2026-05-25 1501"
+VERSION = "2026-05-25 1519"
 
 @app.get("/version")
 def version():
