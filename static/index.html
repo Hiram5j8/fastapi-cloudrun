@@ -2,7 +2,9 @@
 <html>
 
 <head>
+
   <meta charset="UTF-8">
+
   <title>Upload XLS</title>
 
   <style>
@@ -39,7 +41,9 @@
 
 <body>
 
-  <h2>Integrate EXCEL (*.xlsx and *.zip w/ xlsx files)</h2>
+  <h2>
+    Integrate EXCEL (*.xlsx and *.zip w/ xlsx files)
+  </h2>
 
   <!-- VERSION -->
   <div id="version"
@@ -56,9 +60,10 @@
   <form id="form">
 
     <!-- BASE XLS -->
-	<div>
-        Base xlsx
-      	</div>
+    <div>
+      Base xlsx
+    </div>
+
     <input
       type="file"
       name="base_xls"
@@ -67,7 +72,10 @@
     <br><br>
 
     <!-- ZIP -->
-	<div>ZIP w/ xlsx files</div>
+    <div>
+      ZIP w/ xlsx files
+    </div>
+
     <input
       type="file"
       name="data_zip"
@@ -84,7 +92,7 @@
 
       <br>
 
-      <!-- 後端給的數字 -->
+      <!-- 後端驗證碼 -->
       <div
         class="captcha-number"
         id="captchaText">
@@ -93,6 +101,7 @@
 
       <br><br>
 
+      <!-- 使用者輸入 -->
       <input
         type="text"
         id="captchaInput"
@@ -103,7 +112,7 @@
 
     <br>
 
-    <!-- 單一按鈕 -->
+    <!-- BUTTON -->
     <button type="submit">
       Combined output xlsx file
     </button>
@@ -112,9 +121,12 @@
 
   <br>
 
+  <!-- RESULT -->
   <pre id="result"></pre>
 
-  <!-- VERSION -->
+  <!-- ========================= -->
+  <!-- VERSION SCRIPT -->
+  <!-- ========================= -->
   <script>
 
     async function loadVersion() {
@@ -141,12 +153,11 @@
 
   </script>
 
-  <!-- CAPTCHA -->
+  <!-- ========================= -->
+  <!-- CAPTCHA SCRIPT -->
+  <!-- ========================= -->
   <script>
 
-    // =========================
-    // 從後端取得 CAPTCHA
-    // =========================
     async function loadCaptcha() {
 
       try {
@@ -171,7 +182,9 @@
 
   </script>
 
-  <!-- UPLOAD -->
+  <!-- ========================= -->
+  <!-- UPLOAD SCRIPT -->
+  <!-- ========================= -->
   <script>
 
     const form = document.getElementById("form");
@@ -185,9 +198,10 @@
 
       try {
 
+        // 建立 FormData
         const formData = new FormData(form);
 
-        // 使用者輸入
+        // CAPTCHA
         formData.append(
           "captcha",
           document.getElementById("captchaInput").value
@@ -199,7 +213,9 @@
           body: formData
         });
 
+        // =========================
         // CAPTCHA FAIL
+        // =========================
         if (!res.ok) {
 
           const txt = await res.text();
@@ -207,13 +223,18 @@
           document.getElementById("result").textContent =
             txt;
 
-          // 自動刷新新驗證碼
+          // 清空輸入框
+          document.getElementById("captchaInput").value = "";
+
+          // 刷新驗證碼
           loadCaptcha();
 
           return;
         }
 
-        // XLSX
+        // =========================
+        // DOWNLOAD XLSX
+        // =========================
         const blob = await res.blob();
 
         const url =
@@ -234,14 +255,15 @@
 
         window.URL.revokeObjectURL(url);
 
+        // 顯示成功
         document.getElementById("result").textContent =
           "Downloaded";
 
-        // 成功後刷新 CAPTCHA
-        loadCaptcha();
-
-        // 清空輸入
+        // 清空輸入框
         document.getElementById("captchaInput").value = "";
+
+        // 刷新新 CAPTCHA
+        loadCaptcha();
 
       } catch (err) {
 
@@ -250,6 +272,10 @@
         document.getElementById("result").textContent =
           "ERROR";
 
+        // 清空輸入框
+        document.getElementById("captchaInput").value = "";
+
+        // 刷新 CAPTCHA
         loadCaptcha();
 
       }

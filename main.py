@@ -19,7 +19,7 @@ import re
 
 app = FastAPI()
 
-global current_captcha
+#global current_captcha
 
 # ✅ static
 app.mount(
@@ -36,7 +36,7 @@ def home():
 # =========================
 # 版本 API
 # =========================
-VERSION = "2026-05-25 1523"
+VERSION = "2026-05-25 1555"
 
 @app.get("/version")
 def version():
