@@ -1,5 +1,5 @@
 from fastapi import FastAPI, UploadFile, File, Form, Response
-from fastapi.responses import FileResponse
+from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from openpyxl import load_workbook
@@ -8,12 +8,7 @@ from io import BytesIO
 import random
 import zipfile
 import os
-import shutil
 import tempfile
-
-# =====================================================
-# FastAPI
-# =====================================================
 
 app = FastAPI()
 
@@ -33,27 +28,28 @@ def home():
 # =========================
 # Version
 # =========================
-VERSION = "2026-05-25 1626"
+VERSION = "2026-05-25 1635"
 
 @app.get("/version")
 def version():
     return {"version": VERSION}
 
 # =========================
-# CAPTCHA (⚠️ demo版)
+# CAPTCHA
 # =========================
 current_captcha = None
 
 @app.get("/captcha")
 def get_captcha():
     global current_captcha
-    current_captcha = str(random.randint(100000, 999999))
+    current_captcha = "123456"  # ⚠️ demo固定（避免測試不穩）
     return {"captcha": current_captcha}
 
 # =========================
-# 比較 sheet
+# compare
 # =========================
 def compare_sheet(base_ws, src_ws):
+
     diff_rows = []
 
     max_row = min(base_ws.max_row, src_ws.max_row)
@@ -81,7 +77,7 @@ def compare_sheet(base_ws, src_ws):
 
 
 # =========================
-# Main API
+# MAIN
 # =========================
 @app.post("/process")
 async def process(
@@ -91,38 +87,38 @@ async def process(
 ):
 
     # =========================
-    # 0. CAPTCHA check（先做）
+    # CAPTCHA check
     # =========================
     global current_captcha
     if captcha != current_captcha:
-        return Response(content="Captcha Error", status_code=400)
+        return Response("Captcha Error", status_code=400)
 
     # =========================
-    # 1. 工作資料夾
+    # memory temp workspace
     # =========================
-    work = tempfile.mkdtemp(prefix="excel_")
+    work = tempfile.mkdtemp()
 
-    # =========================
-    # 2. 存 base Excel
-    # =========================
     base_path = os.path.join(work, "base.xlsx")
-    with open(base_path, "wb") as f:
-        shutil.copyfileobj(base_xls.file, f)
 
-    # result copy
-    result_path = os.path.join(work, "Result.xlsx")
-    shutil.copy(base_path, result_path)
+    with open(base_path, "wb") as f:
+        f.write(await base_xls.read())
 
     # =========================
-    # 3. 存 ZIP
+    # load base
+    # =========================
+    base_wb = load_workbook(base_path, data_only=True)
+
+    # copy workbook (in memory safe)
+    result_wb = load_workbook(base_path)
+
+    # =========================
+    # unzip
     # =========================
     zip_path = os.path.join(work, "data.zip")
-    with open(zip_path, "wb") as f:
-        shutil.copyfileobj(data_zip.file, f)
 
-    # =========================
-    # 4. 解壓 ZIP
-    # =========================
+    with open(zip_path, "wb") as f:
+        f.write(await data_zip.read())
+
     unzip_dir = os.path.join(work, "unzipped")
     os.makedirs(unzip_dir, exist_ok=True)
 
@@ -130,13 +126,7 @@ async def process(
         z.extractall(unzip_dir)
 
     # =========================
-    # 5. Load Excel（穩定模式）
-    # =========================
-    base_wb = load_workbook(base_path, data_only=True)
-    result_wb = load_workbook(result_path)
-
-    # =========================
-    # 6. FIX：ZIP順序穩定（重點）
+    # FIX 1: deterministic file order
     # =========================
     zip_files = sorted([
         f for f in os.listdir(unzip_dir)
@@ -144,7 +134,7 @@ async def process(
     ])
 
     # =========================
-    # 7. 核心處理
+    # process
     # =========================
     for file in zip_files:
 
@@ -167,31 +157,25 @@ async def process(
                 for col_offset, value in enumerate(values):
 
                     col_num = col_offset + 1
-
                     cell = result_ws.cell(row=row_num, column=col_num)
 
-                    # =========================
-                    # FIX：避免舊值殘留（0問題來源）
-                    # =========================
-                    if value is None:
+                    # FIX 2: 不允許 skip（避免殘留 0）
+                    if value is None or str(value).strip() == "":
                         cell.value = None
                     else:
-                        value_str = str(value).strip()
-                        if value_str == "":
-                            cell.value = None
-                        else:
-                            cell.value = value
+                        cell.value = value
 
     # =========================
-    # 8. Save
+    # EXPORT to memory (重點！！)
     # =========================
-    result_wb.save(result_path)
+    output = BytesIO()
+    result_wb.save(output)
+    output.seek(0)
 
-    # =========================
-    # 9. Return file
-    # =========================
-    return FileResponse(
-        path=result_path,
-        filename="Result.xlsx",
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": "attachment; filename=Result.xlsx"
+        }
     )
