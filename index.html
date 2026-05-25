@@ -3,20 +3,52 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>Upload Test</title>
+  <title>Upload XLS</title>
+
+  <style>
+
+    body{
+      font-family: Arial;
+      padding:30px;
+    }
+
+    .captcha-box{
+      margin-top:20px;
+      margin-bottom:20px;
+    }
+
+    .captcha-number{
+      display:inline-block;
+      background:#eee;
+      padding:10px 20px;
+      font-size:28px;
+      font-weight:bold;
+      color:blue;
+      letter-spacing:5px;
+    }
+
+    .captcha-input{
+      margin-top:10px;
+      padding:8px;
+      width:200px;
+    }
+
+  </style>
+
 </head>
 
 <body>
 
-  <h2>Upload Excel + ZIP</h2>
+  <h2>Integrate EXCEL (*.xlsx and *.zip w/ xlsx files)</h2>
 
   <!-- VERSION -->
-  <div id="version" style="
-    font-size:18px;
-    font-weight:bold;
-    color:blue;
-    margin-bottom:20px;
-  ">
+  <div id="version"
+       style="
+         font-size:18px;
+         font-weight:bold;
+         color:blue;
+         margin-bottom:20px;
+       ">
     VERSION LOADING...
   </div>
 
@@ -24,26 +56,65 @@
   <form id="form">
 
     <!-- BASE XLS -->
-    <input type="file" name="base_xls">
+	<div>
+        Base xlsx
+      	</div>
+    <input
+      type="file"
+      name="base_xls"
+      accept=".xls,.xlsx">
+
     <br><br>
 
-    <!-- DATA ZIP -->
-    <input type="file" name="data_zip">
+    <!-- ZIP -->
+	<div>ZIP w/ xlsx files</div>
+    <input
+      type="file"
+      name="data_zip"
+      accept=".zip">
+
     <br><br>
 
-    <!-- BUTTON -->
+    <!-- CAPTCHA -->
+    <div class="captcha-box">
+
+      <div>
+        Please enter verification code:
+      </div>
+
+      <br>
+
+      <!-- 後端給的數字 -->
+      <div
+        class="captcha-number"
+        id="captchaText">
+        0000
+      </div>
+
+      <br><br>
+
+      <input
+        type="text"
+        id="captchaInput"
+        class="captcha-input"
+        placeholder="Enter captcha">
+
+    </div>
+
+    <br>
+
+    <!-- 單一按鈕 -->
     <button type="submit">
-      Upload
+      Combined output xlsx file
     </button>
 
   </form>
 
   <br>
 
-  <!-- RESULT -->
   <pre id="result"></pre>
 
-  <!-- VERSION SCRIPT -->
+  <!-- VERSION -->
   <script>
 
     async function loadVersion() {
@@ -70,7 +141,37 @@
 
   </script>
 
-  <!-- UPLOAD SCRIPT -->
+  <!-- CAPTCHA -->
+  <script>
+
+    // =========================
+    // 從後端取得 CAPTCHA
+    // =========================
+    async function loadCaptcha() {
+
+      try {
+
+        const res = await fetch("/captcha");
+
+        const data = await res.json();
+
+        document.getElementById("captchaText").innerText =
+          data.captcha;
+
+      } catch (err) {
+
+        console.error(err);
+
+      }
+
+    }
+
+    // 初始載入
+    loadCaptcha();
+
+  </script>
+
+  <!-- UPLOAD -->
   <script>
 
     const form = document.getElementById("form");
@@ -80,44 +181,76 @@
       e.preventDefault();
 
       document.getElementById("result").textContent =
-        "上傳中...";
+        "Processing...";
 
       try {
 
         const formData = new FormData(form);
 
+        // 使用者輸入
+        formData.append(
+          "captcha",
+          document.getElementById("captchaInput").value
+        );
+
+        // POST
         const res = await fetch("/process", {
           method: "POST",
           body: formData
         });
 
+        // CAPTCHA FAIL
         if (!res.ok) {
 
+          const txt = await res.text();
+
           document.getElementById("result").textContent =
-            "處理失敗";
+            txt;
+
+          // 自動刷新新驗證碼
+          loadCaptcha();
 
           return;
         }
 
+        // XLSX
         const blob = await res.blob();
 
-        document.getElementById("result").textContent =
-          "下載完成";
+        const url =
+          window.URL.createObjectURL(blob);
 
-        const url = window.URL.createObjectURL(blob);
-
-        const a = document.createElement("a");
+        const a =
+          document.createElement("a");
 
         a.href = url;
 
-        a.download = "result.txt";
+        a.download = "result.xlsx";
+
+        document.body.appendChild(a);
 
         a.click();
 
-      } catch (err) {
+        document.body.removeChild(a);
+
+        window.URL.revokeObjectURL(url);
 
         document.getElementById("result").textContent =
-          "發生錯誤";
+          "Downloaded";
+
+        // 成功後刷新 CAPTCHA
+        loadCaptcha();
+
+        // 清空輸入
+        document.getElementById("captchaInput").value = "";
+
+      } catch (err) {
+
+        console.error(err);
+
+        document.getElementById("result").textContent =
+          "ERROR";
+
+        loadCaptcha();
 
       }
 

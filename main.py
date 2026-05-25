@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any, List
 from io import BytesIO
 
+import random
 import zipfile
 import os
 import shutil
@@ -41,6 +42,20 @@ def version():
         "version": VERSION
     }
 
+# =========================
+# CAPTCHA API
+# =========================
+@app.get("/captcha")
+def get_captcha():
+
+    global current_captcha
+
+    current_captcha = str(
+        random.randint(1000, 9999)
+    )
+    return {
+        "captcha": current_captcha
+    }
 # =========================
 # 比較差異
 # =========================
@@ -80,9 +95,12 @@ def compare_sheet(base_ws, src_ws):
 @app.post("/process")
 async def process(
     base_xls: UploadFile = File(...),
-    data_zip: UploadFile = File(...)
+    data_zip: UploadFile = File(...),
+    captcha: str = Form(...)
 ):
-
+    global current_captcha
+    
+    
     # 工作目錄
     work = tempfile.mkdtemp(prefix="excel_")
 
@@ -170,7 +188,15 @@ async def process(
                            
     # 儲存
     result_wb.save(result_path)
+    
+    
+    # 驗證
+    if captcha != current_captcha:
 
+        return Response(
+            content="Captcha Error",
+            status_code=400
+        )
     return FileResponse(
         path=result_path,
         filename="Result.xlsx",
