@@ -36,7 +36,7 @@ def home():
 # =========================
 # 版本 API
 # =========================
-VERSION = "2026-05-25 1519"
+VERSION = "2026-05-25 1523"
 
 @app.get("/version")
 def version():
@@ -53,7 +53,7 @@ def get_captcha():
     global current_captcha
 
     current_captcha = str(
-        random.randint(1000, 9999)
+        random.randint(100000, 999999)
     )
     return {
         "captcha": current_captcha
