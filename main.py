@@ -1,9 +1,8 @@
-from fastapi import FastAPI, UploadFile, File, Form
-from fastapi.responses import StreamingResponse, FileResponse
+from fastapi import FastAPI, UploadFile, File, Form, Response
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from openpyxl import load_workbook, Workbook
-from dataclasses import dataclass
-from typing import Any, List
+
+from openpyxl import load_workbook
 from io import BytesIO
 
 import random
@@ -11,7 +10,6 @@ import zipfile
 import os
 import shutil
 import tempfile
-import re
 
 # =====================================================
 # FastAPI
@@ -19,50 +17,43 @@ import re
 
 app = FastAPI()
 
-#global current_captcha
-
-# ✅ static
+# =========================
+# Static
+# =========================
 app.mount(
     "/static",
     StaticFiles(directory="static", html=True),
     name="static"
 )
 
-# ✅ 首頁
 @app.get("/")
 def home():
     return FileResponse("static/index.html")
 
 # =========================
-# 版本 API
+# Version
 # =========================
-VERSION = "2026-05-25 1555"
+VERSION = "2026-05-25 1620"
 
 @app.get("/version")
 def version():
-    return {
-        "version": VERSION
-    }
+    return {"version": VERSION}
 
 # =========================
-# CAPTCHA API
+# CAPTCHA (⚠️ demo版)
 # =========================
+current_captcha = None
+
 @app.get("/captcha")
 def get_captcha():
-
     global current_captcha
+    current_captcha = str(random.randint(100000, 999999))
+    return {"captcha": current_captcha}
 
-    current_captcha = str(
-        random.randint(100000, 999999)
-    )
-    return {
-        "captcha": current_captcha
-    }
 # =========================
-# 比較差異
+# 比較 sheet
 # =========================
 def compare_sheet(base_ws, src_ws):
-
     diff_rows = []
 
     max_row = min(base_ws.max_row, src_ws.max_row)
@@ -78,13 +69,11 @@ def compare_sheet(base_ws, src_ws):
             base_val = base_ws.cell(r, c).value
             src_val = src_ws.cell(r, c).value
 
-            # 差異判斷
             if base_val != src_val:
                 has_diff = True
 
             row_values.append(src_val)
 
-        # 有差異才輸出
         if has_diff:
             diff_rows.append((r, row_values))
 
@@ -92,7 +81,7 @@ def compare_sheet(base_ws, src_ws):
 
 
 # =========================
-# API
+# Main API
 # =========================
 @app.post("/process")
 async def process(
@@ -100,97 +89,108 @@ async def process(
     data_zip: UploadFile = File(...),
     captcha: str = Form(...)
 ):
-    
-    # 工作目錄
+
+    # =========================
+    # 0. CAPTCHA check（先做）
+    # =========================
+    global current_captcha
+    if captcha != current_captcha:
+        return Response(content="Captcha Error", status_code=400)
+
+    # =========================
+    # 1. 工作資料夾
+    # =========================
     work = tempfile.mkdtemp(prefix="excel_")
 
-    # base
-    base_path = os.path.join(work, base_xls.filename)
-
+    # =========================
+    # 2. 存 base Excel
+    # =========================
+    base_path = os.path.join(work, "base.xlsx")
     with open(base_path, "wb") as f:
         shutil.copyfileobj(base_xls.file, f)
-    # 直接複製成 result.xlsx
+
+    # result copy
     result_path = os.path.join(work, "Result.xlsx")
     shutil.copy(base_path, result_path)
-    
-    # zip
-    zip_path = os.path.join(work, data_zip.filename)
 
+    # =========================
+    # 3. 存 ZIP
+    # =========================
+    zip_path = os.path.join(work, "data.zip")
     with open(zip_path, "wb") as f:
         shutil.copyfileobj(data_zip.file, f)
 
-    # 解壓縮
+    # =========================
+    # 4. 解壓 ZIP
+    # =========================
     unzip_dir = os.path.join(work, "unzipped")
     os.makedirs(unzip_dir, exist_ok=True)
 
     with zipfile.ZipFile(zip_path, "r") as z:
         z.extractall(unzip_dir)
 
-    # 開啟 base
-    base_wb = load_workbook(base_path)
-    
-    # 開啟 Result.xlsx
-    result_wb = load_workbook(result_path)  
-    
-    # TXT 結果
-    txt_path = os.path.join(work, "Result.txt")
+    # =========================
+    # 5. Load Excel（穩定模式）
+    # =========================
+    base_wb = load_workbook(base_path, data_only=True)
+    result_wb = load_workbook(result_path)
 
-    with open(txt_path, "w", encoding="utf-8") as txt_fp:
+    # =========================
+    # 6. FIX：ZIP順序穩定（重點）
+    # =========================
+    zip_files = sorted([
+        f for f in os.listdir(unzip_dir)
+        if f.endswith((".xlsx", ".xlsm"))
+    ])
 
-        # 掃描 ZIP
-        for file in os.listdir(unzip_dir):
+    # =========================
+    # 7. 核心處理
+    # =========================
+    for file in zip_files:
 
-            if not file.endswith((".xlsx", ".xlsm")):
+        src_path = os.path.join(unzip_dir, file)
+        src_wb = load_workbook(src_path, data_only=True)
+
+        for sheet_name in src_wb.sheetnames:
+
+            if sheet_name not in base_wb.sheetnames:
                 continue
 
-            src_path = os.path.join(unzip_dir, file)
+            base_ws = base_wb[sheet_name]
+            src_ws = src_wb[sheet_name]
+            result_ws = result_wb[sheet_name]
 
-            #print("處理:", file)
+            diff_rows = compare_sheet(base_ws, src_ws)
 
-            src_wb = load_workbook(src_path, data_only=False)
+            for row_num, values in diff_rows:
 
-            # sheet 比較
-            for sheet_name in src_wb.sheetnames:
+                for col_offset, value in enumerate(values):
 
-                if sheet_name not in base_wb.sheetnames:
-                    continue
+                    col_num = col_offset + 1
 
-                base_ws = base_wb[sheet_name]
-                src_ws = src_wb[sheet_name]
-                result_ws = result_wb[sheet_name]	#add
+                    cell = result_ws.cell(row=row_num, column=col_num)
 
-                # 差異
-                diff_rows = compare_sheet(base_ws, src_ws)
-                
-                for row_num, values in diff_rows:
-                    
-                    for col_offset, value in enumerate(values):
-
-                        # 空值跳過
-                        if value is None:
-                            continue
-
+                    # =========================
+                    # FIX：避免舊值殘留（0問題來源）
+                    # =========================
+                    if value is None:
+                        cell.value = None
+                    else:
                         value_str = str(value).strip()
-
-                        # 空白跳過
                         if value_str == "":
-                            continue
+                            cell.value = None
+                        else:
+                            cell.value = value
 
-                        col_num = 1 + col_offset
-
-                        # Result Cell
-                        target_cell = result_ws.cell(
-                            row=row_num,
-                            column=col_num
-                        )
-                        # 只改值
-                        target_cell.value = value
-                           
-    # 儲存
+    # =========================
+    # 8. Save
+    # =========================
     result_wb.save(result_path)
-    
-    
-    # 驗證
+
+    # =========================
+    # 9. Return file
+    # =========================
+        # 驗證
     if captcha != current_captcha:
 
         return Response(
