@@ -19,6 +19,8 @@ import re
 
 app = FastAPI()
 
+global current_captcha
+
 # ✅ static
 app.mount(
     "/static",
@@ -98,8 +100,6 @@ async def process(
     data_zip: UploadFile = File(...),
     captcha: str = Form(...)
 ):
-    global current_captcha
-    
     
     # 工作目錄
     work = tempfile.mkdtemp(prefix="excel_")
